@@ -22,9 +22,7 @@ export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
       frequency,
       next_due_date: new Date(nextDate).toISOString(),
       category: 'utility',
-      is_auto_pay: false,
-      colour: '#8B5CF6',
-      icon: 'FileText'
+      is_active: true
     }, {
       onSuccess: () => {
         setName(''); setAmount(''); setNextDate('');

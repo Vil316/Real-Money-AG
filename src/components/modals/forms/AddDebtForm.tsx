@@ -17,7 +17,6 @@ export function AddDebtForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
     if (!name || balance === '' || !creditor) return;
     
     addDebt.mutate({
-      name,
       creditor_name: creditor,
       current_balance: Number(balance),
       original_balance: Number(balance),
@@ -25,7 +24,8 @@ export function AddDebtForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
       interest_rate: Number(rate) || 0,
       is_interest_free: Number(rate) === 0,
       payment_frequency: 'monthly',
-      is_settled: false
+      is_settled: false,
+      notes: name
     }, {
       onSuccess: () => {
         setName(''); setBalance(''); setCreditor(''); setRate('');

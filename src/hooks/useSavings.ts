@@ -42,5 +42,13 @@ export function useSavings() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['savings', user?.id] })
   })
 
-  return { goals: goals ?? [], isLoading, addContribution }
+  const addGoal = useMutation({
+    mutationFn: async (newGoal: any) => {
+      const { error } = await supabase.from('savings_goals').insert([{ ...newGoal, user_id: user?.id }])
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['savings', user?.id] })
+  })
+
+  return { goals: goals ?? [], isLoading, addContribution, addGoal }
 }

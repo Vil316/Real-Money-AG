@@ -18,6 +18,7 @@ import { AddMenuDrawer } from '@/components/modals/AddMenuDrawer'
 import { AddAccountForm } from '@/components/modals/forms/AddAccountForm'
 import { AddBillForm } from '@/components/modals/forms/AddBillForm'
 import { AddDebtForm } from '@/components/modals/forms/AddDebtForm'
+import { AddGoalForm } from '@/components/modals/forms/AddGoalForm'
 
 export function TodayPage() {
   const navigate = useNavigate()
@@ -231,6 +232,7 @@ export function TodayPage() {
       <AddAccountForm isOpen={activeActionForm === 'account'} onClose={() => setActiveActionForm(null)} />
       <AddBillForm isOpen={activeActionForm === 'bill'} onClose={() => setActiveActionForm(null)} />
       <AddDebtForm isOpen={activeActionForm === 'debt'} onClose={() => setActiveActionForm(null)} />
+      <AddGoalForm isOpen={activeActionForm === 'goal'} onClose={() => setActiveActionForm(null)} />
     </>
   )
 }
