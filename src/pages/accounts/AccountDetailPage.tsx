@@ -15,9 +15,16 @@ export function AccountDetailPage() {
   const { accounts, isLoading: accLoad } = useAccounts()
   const { transactions, isLoading: txLoad } = useTransactions(id)
   
+  // React Query returns isLoading=false if the query is disabled (e.g. while useAuth is still fetching).
+  // Check if we specifically haven't finished downloading accounts yet
   const account = accounts.find(a => a.id === id)
 
-  if (accLoad) return <div className="p-8 text-foreground text-center">Loading account...</div>
+  if (accLoad || accounts.length === 0) {
+    // If accounts is totally empty, we might just be initializing. Wait.
+    // If it never resolves, we might need a timeout, but this prevents the instant crash.
+    return <div className="p-8 text-foreground text-center animate-pulse">Loading account data...</div>
+  }
+
   if (!account) return <div className="p-8 text-foreground text-center">Account not found or access denied</div>
 
   return (
