@@ -12,6 +12,11 @@ export function useAuth() {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+    }).catch((error) => {
+      console.warn("Supabase auth init failed (likely blocked cookies/storage on mobile):", error)
+      setSession(null)
+      setUser(null)
+      setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
