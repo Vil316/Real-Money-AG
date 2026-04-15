@@ -1,12 +1,35 @@
+import { useState, useCallback } from 'react'
 import { useAccounts } from '@/hooks/useAccounts'
-import { Plus } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { Plus, RefreshCw } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { LinkBankCard } from '@/components/cards/LinkBankCard'
+import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 
 export function AccountsPage() {
   const { accounts, isLoading } = useAccounts()
+  const { user } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [isSyncing, setIsSyncing] = useState(false)
+
+  const handleRefresh = useCallback(async () => {
+    if (!user || isSyncing) return
+    setIsSyncing(true)
+    try {
+      await supabase.functions.invoke('plaid-manual-refresh', {
+        body: { user_id: user.id }
+      })
+      queryClient.invalidateQueries({ queryKey: ['accounts', user.id] })
+      queryClient.invalidateQueries({ queryKey: ['transactions', user.id] })
+    } catch (e) {
+      console.error('Refresh failed:', e)
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [user, isSyncing, queryClient])
 
   const nonDebtAccounts = accounts.filter(a => a.type !== 'loan' && a.type !== 'informal_debt')
   const totalBalance = nonDebtAccounts.reduce((sum, acc) => sum + Number(acc.balance), 0)
@@ -84,9 +107,19 @@ export function AccountsPage() {
     <div className="flex flex-col h-full bg-background">
       <div className="px-5 pt-6 pb-2 shrink-0 flex justify-between items-center">
         <h1 className="text-2xl font-display font-semibold -tracking-[0.5px] text-foreground">Ledger</h1>
-        <button className="w-9 h-9 bg-foreground text-background rounded-full flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all">
-          <Plus size={18} strokeWidth={2.5} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={isSyncing}
+            className="w-9 h-9 bg-foreground/10 text-foreground border border-border rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+            title="Sync all accounts"
+          >
+            <RefreshCw size={15} strokeWidth={2} className={isSyncing ? 'animate-spin' : ''} />
+          </button>
+          <button className="w-9 h-9 bg-foreground text-background rounded-full flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all">
+            <Plus size={18} strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
       
       <div className="px-5 mb-8 mt-4 shrink-0">
