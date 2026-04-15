@@ -2,6 +2,7 @@ import { useAccounts } from '@/hooks/useAccounts'
 import { Plus } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { useNavigate } from 'react-router-dom'
+import { LinkBankCard } from '@/components/cards/LinkBankCard'
 
 export function AccountsPage() {
   const { accounts, isLoading } = useAccounts()
@@ -106,6 +107,11 @@ export function AccountsPage() {
             <p className="text-sm">Link your bank accounts or add a manual ledger to get started.</p>
           </div>
         )}
+
+        {/* Bank Connection Target */}
+        <div className="px-5 pb-8">
+          <LinkBankCard />
+        </div>
       </div>
     </div>
   )

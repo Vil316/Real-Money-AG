@@ -28,14 +28,15 @@ export function useTransactions(accountId?: string) {
   })
 
   const addTransaction = useMutation({
-    mutationFn: async ({ account_id, amount, merchant, category, is_pending, notes }: Partial<Transaction>) => {
+    mutationFn: async ({ account_id, amount, merchant_raw, category_id, is_pending, notes, source_type }: Partial<Transaction>) => {
       // 1. Insert transaction
       const { error: txError } = await supabase.from('transactions').insert([{
         user_id: user?.id,
         account_id,
         amount,
-        merchant,
-        category,
+        merchant_raw,
+        category_id,
+        source_type: source_type || 'manual',
         is_pending: is_pending ?? false,
         notes
       }])

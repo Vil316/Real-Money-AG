@@ -35,12 +35,32 @@ export interface Account {
   type: AccountType
   balance: number
   currency: string
-  colour: string
-  icon: string
+  colour?: string
+  icon?: string
   is_manual: boolean
+  is_linked?: boolean
+  external_account_id?: string
+  provider?: string
   notes?: string
   is_archived: boolean
   last_updated: string
+}
+
+export interface Category {
+  id: string
+  user_id: string
+  name: string
+  parent_name?: string
+  is_system: boolean
+}
+
+export interface Rule {
+  id: string
+  user_id: string
+  match_type: string
+  match_value: string
+  assign_category_id?: string
+  assign_merchant_name?: string
 }
 
 export interface Bill {
@@ -141,8 +161,12 @@ export interface Transaction {
   amount: number
   currency: string
   date: string
-  merchant: string
-  category: string
+  merchant_raw: string
+  merchant_clean?: string
+  category_id?: string
+  source_type?: string
+  confidence_score?: number
+  external_transaction_id?: string
   is_pending: boolean
   notes?: string
 }
@@ -169,4 +193,6 @@ export interface ActionItem {
   referenceType?: string
   canMarkPaid?: boolean
   canMarkDone?: boolean
+  status?: string
+  reasoning_json?: Record<string, any>
 }

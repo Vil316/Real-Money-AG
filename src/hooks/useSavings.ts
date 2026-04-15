@@ -44,8 +44,8 @@ export function useSavings() {
         user_id: user?.id,
         account_id: accountId,
         amount: -Math.abs(amount),
-        merchant: `Transfer to ${goal?.name || 'Savings'}`,
-        category: 'Savings Transfer',
+        merchant_raw: `Transfer to ${goal?.name || 'Savings'}`,
+        source_type: 'manual',
         is_pending: false
       }])
       if (txErr) throw txErr

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { ActionCard } from '@/components/cards/ActionCard'
-import { formatCurrency, calculateNetPosition, getActionItems, advanceDueDate } from '@/lib/utils'
+import { formatCurrency, calculateNetPosition, calculateSafeToSpend, getActionItems, advanceDueDate } from '@/lib/utils'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useBills } from '@/hooks/useBills'
 import { useObligations } from '@/hooks/useObligations'
@@ -11,7 +11,7 @@ import { useDebts } from '@/hooks/useDebts'
 import { useSavings } from '@/hooks/useSavings'
 import { useIncome } from '@/hooks/useIncome'
 import { useProfile } from '@/hooks/useProfile'
-import { Bell, PieChart, Plus, User, Settings, CreditCard, ChevronDown } from 'lucide-react'
+import { Bell, PieChart, Plus, User, Settings, CreditCard, ChevronDown, Shield } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/components/theme-provider'
 import { ProfileDrawer } from '@/components/modals/ProfileDrawer'
@@ -40,7 +40,7 @@ export function TodayPage() {
 
   const { profile } = useProfile()
 
-  const netPosition = calculateNetPosition(accounts)
+  const safeData = calculateSafeToSpend({ accounts, bills, obligations, debts })
 
   const actionItems = getActionItems({
     bills, subscriptions, debts, obligations, savingsGoals, incomeEntries, profile: profile ?? null
@@ -104,10 +104,18 @@ export function TodayPage() {
       </div>
 
       <div className="mb-4 px-4 mt-2">
-        <p className="text-[12px] text-foreground/50 font-semibold uppercase tracking-wider mb-1">Total Balance</p>
+        <p className="text-[12px] text-[#0B8289] font-bold uppercase tracking-widest mb-1 flex items-center gap-1.5"><Shield size={12} /> Safe to Spend</p>
         <h2 className="text-[44px] font-display font-semibold leading-none -tracking-[1.5px] text-foreground">
-          {formatCurrency(netPosition)}
+          {formatCurrency(safeData.safe)}
         </h2>
+        
+        {/* Trust Layer Dropdown preview */}
+        <div className="mt-4 bg-foreground/5 p-3 rounded-xl border border-border/50 text-xs text-foreground/70 font-medium">
+          <div className="flex justify-between mb-1.5"><span>Liquid Cash</span> <span className="text-foreground">{formatCurrency(safeData.liquid)}</span></div>
+          <div className="flex justify-between mb-1.5"><span>Protected Bills this week</span> <span className="text-red-500">-{formatCurrency(safeData.protectedBills)}</span></div>
+          <div className="flex justify-between mb-1.5"><span>Pending Obligations</span> <span className="text-red-500">-{formatCurrency(safeData.protectedObs)}</span></div>
+          <div className="flex justify-between border-t border-border/50 pt-1.5 mt-1.5"><span>Safety Buffer</span> <span className="text-orange-500">-{formatCurrency(safeData.buffer)}</span></div>
+        </div>
       </div>
 
       {accounts.length > 0 && (

@@ -19,10 +19,10 @@ export function AddTransactionForm({ isOpen, onClose, accountId }: { isOpen: boo
 
     addTransaction.mutate({
       account_id: accountId,
-      merchant,
+      merchant_raw: merchant,
       amount: finalAmount,
       is_pending: false,
-      category: isIncome ? 'Income' : 'Expense'
+      source_type: 'manual'
     }, {
       onSuccess: () => {
         setMerchant(''); setAmount(''); setIsIncome(false);

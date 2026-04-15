@@ -102,7 +102,7 @@ export function AccountDetailPage() {
                     <Store size={18} />
                   </div>
                   <div>
-                    <h4 className="text-foreground font-medium text-[15px]">{t.merchant}</h4>
+                    <h4 className="text-foreground font-medium text-[15px]">{t.merchant_clean || t.merchant_raw}</h4>
                     <p className="text-foreground/50 text-[12px] font-medium mt-0.5">{format(new Date(t.date), 'dd MMM yyyy')} {t.is_pending ? '· Pending' : ''}</p>
                   </div>
                 </div>

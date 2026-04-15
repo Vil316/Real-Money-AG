@@ -40,8 +40,8 @@ export function useDebts() {
         user_id: user?.id,
         account_id: accountId,
         amount: -Math.abs(amount),
-        merchant: `Payment to ${debt.creditor_name}`,
-        category: 'Debt Repayment',
+        merchant_raw: `Payment to ${debt.creditor_name}`,
+        source_type: 'manual',
         is_pending: false,
         notes: `Automated debt mapping for ${debt.creditor_name}`
       }])

@@ -58,6 +58,33 @@ export function calculateNetPosition(accounts: Account[]): number {
   }, 0)
 }
 
+export function calculateSafeToSpend(data: {
+  accounts: Account[],
+  bills: Bill[],
+  obligations: Obligation[],
+  debts: Debt[]
+}): { safe: number, liquid: number, protectedBills: number, protectedObs: number, buffer: number } {
+  const liquidAccounts = data.accounts.filter(a => a.type === 'bank' || a.type === 'cash')
+  const liquid = liquidAccounts.reduce((sum, a) => sum + Number(a.balance), 0)
+
+  const protectedBills = data.bills
+    .filter(b => !b.is_paid_this_cycle && daysUntil(b.next_due_date) <= 7)
+    .reduce((sum, b) => sum + Number(b.amount), 0)
+
+  const protectedObs = data.obligations
+    .filter(o => !o.is_fulfilled_this_cycle && o.amount_type === 'fixed')
+    .reduce((sum, o) => sum + Number(o.amount || 0), 0)
+
+  const pendingDebts = data.debts
+    .filter(d => !d.is_settled && d.next_payment_date && daysUntil(d.next_payment_date) <= 7)
+    .reduce((sum, d) => sum + Number(d.minimum_payment || 0), 0)
+
+  const buffer = 150 // Static MVP buffer
+
+  const safe = liquid - protectedBills - protectedObs - pendingDebts - buffer
+  return { safe: safe < 0 ? 0 : safe, liquid, protectedBills, protectedObs: protectedObs + pendingDebts, buffer }
+}
+
 export function totalActiveSubscriptions(subscriptions: Subscription[]): number {
   return subscriptions
     .filter(sub => sub.status === 'active')

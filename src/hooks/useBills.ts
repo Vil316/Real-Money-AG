@@ -35,7 +35,7 @@ export function useBills() {
       if (bill && bill.account_id) {
         // Run atomic ledger deduction independently in background
         supabase.from('transactions').insert([{
-          user_id: user?.id, account_id: bill.account_id, amount: -Math.abs(bill.amount), merchant: bill.name, category: 'Bills', is_pending: false, notes: 'Auto-paid from Bills Dashboard'
+          user_id: user?.id, account_id: bill.account_id, amount: -Math.abs(bill.amount), merchant_raw: bill.name, source_type: 'manual', is_pending: false, notes: 'Auto-paid from Bills Dashboard'
         }]).then(() => {
           supabase.from('accounts').select('balance').eq('id', bill.account_id).single().then(({ data }) => {
             if (data) supabase.from('accounts').update({ balance: Number(data.balance) - bill.amount }).eq('id', bill.account_id)
