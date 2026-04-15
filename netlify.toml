@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Single Page Application (SPA) Routing
+# This rule tells Netlify to redirect all routes to the central index file,
+# allowing React Router to handle the URL matching natively.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

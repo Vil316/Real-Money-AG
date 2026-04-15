@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 5% 96%; /* #F2F2F7 - iOS Light Gray */
+    --foreground: 240 10% 4%; /* Near Black */
+
+    --card: 0 0% 100%; /* Pure White */
+    --card-foreground: 240 10% 4%;
+    
+    --border: 240 6% 90%;
+    
+    /* Structural Glass Variables for Light Mode */
+    --glass-bg: 0 0% 100%;
+    --glass-opacity: 0.65;
+
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 0 0% 0%; /* Pitch Black */
+    --foreground: 0 0% 100%; /* Pure White */
+
+    --card: 240 4% 11%; /* #1C1C1E - iOS Dark Gray */
+    --card-foreground: 0 0% 100%;
+
+    --border: 240 4% 18%;
+
+    /* Structural Glass Variables for Dark Mode */
+    --glass-bg: 240 4% 11%;
+    --glass-opacity: 0.70;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground transition-colors duration-300;
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Sora', sans-serif;
+    @apply text-foreground;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+}
+
+@layer components {
+  /* Flat Monzo-style cards */
+  .glass {
+    @apply bg-card border-border;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Status Colors */
+  .glass-green {
+    background: rgba(48, 209, 88, 0.15);
+    border: 1px solid rgba(48, 209, 88, 0.3);
+  }
+
+  .glass-amber {
+    background: rgba(255, 159, 10, 0.15);
+    border: 1px solid rgba(255, 159, 10, 0.3);
+  }
+
+  .glass-red {
+    background: rgba(255, 69, 58, 0.15);
+    border: 1px solid rgba(255, 69, 58, 0.3);
+  }
+
+  /* System Translucent iOS Material (User requested liquid glass here) */
+  .nav-glass {
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    background-color: hsl(var(--glass-bg) / var(--glass-opacity));
+    border-top: 1px solid hsl(var(--border) / 0.5);
+    border-radius: 9999px;
+  }
+
+  .badge {
+    @apply bg-card border-border text-muted-foreground;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+  }
+
+  .track {
+    height: 4px;
+    @apply bg-card;
+    border-radius: 9999px;
+  }
+  .fill-green  { background: #30D158; }
+  .fill-amber  { background: #FF9F0A; }
+  .fill-red    { background: #FF453A; }
+  .fill-blue   { background: #0A84FF; }
+}
+
+@layer utilities {
+  .text-glass-secondary {
+    @apply text-foreground/50;
+  }
+  
+  .text-glass-muted {
+    @apply text-foreground/40;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  
+  .text-amount {
+    @apply text-foreground;
+    font-family: 'Sora', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+  
+  .text-positive {
+    color: #30D158; /* iOS Green is legible on both */
+  }
+  
+  .text-negative {
+    @apply text-foreground; /* Typically Monzo just uses black/white for debts natively, but we'll stick to clear labels */
+  }
+  
+  .text-warning {
+    color: #FF9F0A;
+  }
+}
