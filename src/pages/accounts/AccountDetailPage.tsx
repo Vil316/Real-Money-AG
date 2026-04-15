@@ -1,17 +1,24 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { mockDB } from '@/lib/mockDB'
+import { useState } from 'react'
+import { useAccounts } from '@/hooks/useAccounts'
+import { useTransactions } from '@/hooks/useTransactions'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowLeft, Plus, Send, MoreHorizontal, Store } from 'lucide-react'
+import { ArrowLeft, Plus, Send, MoreHorizontal, Store, RefreshCw } from 'lucide-react'
 import { format } from 'date-fns'
+import { AddTransactionForm } from '@/components/modals/forms/AddTransactionForm'
 
 export function AccountDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   
-  const account = mockDB.accounts.find(a => a.id === id)
-  const transactions = mockDB.transactions.filter(t => t.account_id === id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const { accounts, isLoading: accLoad } = useAccounts()
+  const { transactions, isLoading: txLoad } = useTransactions(id)
+  
+  const account = accounts.find(a => a.id === id)
 
-  if (!account) return <div className="p-8 text-foreground text-center">Account not found</div>
+  if (accLoad) return <div className="p-8 text-foreground text-center">Loading account...</div>
+  if (!account) return <div className="p-8 text-foreground text-center">Account not found or access denied</div>
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,9 +60,9 @@ export function AccountDetailPage() {
 
       {/* Actions */}
       <div className="flex justify-center gap-7 px-5 mb-8">
-        <button className="flex flex-col items-center gap-2 group">
+        <button onClick={() => setIsAddOpen(true)} className="flex flex-col items-center gap-2 group">
           <div className="w-14 h-14 rounded-full bg-card border border-border flex items-center justify-center shadow-sm text-foreground group-active:scale-95 transition-transform"><Plus size={24} strokeWidth={2}/></div>
-          <span className="text-[11px] font-semibold text-foreground/70">Add Money</span>
+          <span className="text-[11px] font-semibold text-foreground/70">Add Log</span>
         </button>
         <button className="flex flex-col items-center gap-2 group">
           <div className="w-14 h-14 rounded-full bg-card border border-border flex items-center justify-center shadow-sm text-foreground group-active:scale-95 transition-transform"><Send size={22} strokeWidth={2}/></div>
@@ -71,9 +78,13 @@ export function AccountDetailPage() {
       <div className="px-3 pb-32">
         <h3 className="text-lg text-foreground font-semibold mb-3 px-2">History</h3>
         
-        {transactions.length === 0 ? (
+        {txLoad ? (
+          <div className="text-center py-8">
+            <RefreshCw className="animate-spin text-foreground/20 mx-auto" size={24} />
+          </div>
+        ) : transactions.length === 0 ? (
           <div className="text-center py-10">
-            <p className="text-foreground/40 text-sm font-medium">No transactions found.</p>
+            <p className="text-foreground/40 text-sm font-medium">No transactions logged yet.</p>
           </div>
         ) : (
           <div className="bg-card rounded-3xl border border-border overflow-hidden shadow-sm">
@@ -90,7 +101,7 @@ export function AccountDetailPage() {
                 </div>
                 <div className="text-right">
                   <p className={`font-semibold text-[16px] -tracking-[0.4px] ${t.amount > 0 ? 'text-[#30D158]' : 'text-foreground'}`}>
-                    {t.amount > 0 ? '+' : ''}{formatCurrency(t.amount, t.currency)}
+                    {t.amount > 0 ? '+' : ''}{formatCurrency(t.amount, account.currency)}
                   </p>
                 </div>
               </div>
@@ -98,6 +109,8 @@ export function AccountDetailPage() {
           </div>
         )}
       </div>
+
+      <AddTransactionForm isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} accountId={account.id} />
     </div>
   )
 }

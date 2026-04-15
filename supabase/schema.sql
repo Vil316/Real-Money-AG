@@ -136,7 +136,21 @@ CREATE TABLE IF NOT EXISTS public.income_entries (
   notes TEXT
 );
 
--- 10. ACTION ITEMS
+-- 10. TRANSACTIONS
+CREATE TABLE IF NOT EXISTS public.transactions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  account_id UUID REFERENCES public.accounts(id) ON DELETE CASCADE,
+  amount NUMERIC NOT NULL,
+  merchant TEXT NOT NULL,
+  category TEXT,
+  date TIMESTAMPTZ DEFAULT NOW(),
+  is_pending BOOLEAN DEFAULT FALSE,
+  currency TEXT DEFAULT 'GBP',
+  notes TEXT
+);
+
+-- 11. ACTION ITEMS
 CREATE TABLE IF NOT EXISTS public.action_items (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -168,7 +182,10 @@ ALTER TABLE public.obligations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.income_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.action_items ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+
 -- Profiles uses 'id' instead of 'user_id' because it directly mirrors auth.users
+DROP POLICY IF EXISTS "Users can fully control their own profiles" ON public.profiles;
 CREATE POLICY "Users can fully control their own profiles" ON public.profiles FOR ALL USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
 -- Helper to quickly generate generic policies for the rest of the tables
@@ -176,8 +193,9 @@ DO $$
 DECLARE
   table_name text;
 BEGIN
-  FOR table_name IN SELECT UNNEST(ARRAY['accounts', 'bills', 'subscriptions', 'savings_goals', 'savings_contributions', 'debts', 'obligations', 'income_entries', 'action_items'])
+  FOR table_name IN SELECT UNNEST(ARRAY['accounts', 'bills', 'subscriptions', 'savings_goals', 'savings_contributions', 'debts', 'obligations', 'income_entries', 'action_items', 'transactions'])
   LOOP
+    EXECUTE format('DROP POLICY IF EXISTS "Users can fully control their own %I" ON public.%I;', table_name, table_name);
     EXECUTE format('CREATE POLICY "Users can fully control their own %I" ON public.%I FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);', table_name, table_name);
   END LOOP;
 END $$;

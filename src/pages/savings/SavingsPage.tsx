@@ -3,9 +3,12 @@ import { Plus } from 'lucide-react'
 import { useSavings } from '@/hooks/useSavings'
 import { formatCurrency } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { useState } from 'react'
+import { AddContributionForm } from '@/components/modals/forms/AddContributionForm'
 
 export function SavingsPage() {
-  const { goals, isLoading, addContribution } = useSavings()
+  const { goals, isLoading } = useSavings()
+  const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
 
   if (isLoading) return <div className="text-foreground/50 text-center py-4 font-medium text-sm">Syncing pots...</div>
 
@@ -49,7 +52,7 @@ export function SavingsPage() {
                 {!isComplete && (
                   <motion.button 
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => addContribution.mutate({ goalId: goal.id, amount: goal.weekly_contribution })}
+                    onClick={() => setActiveGoalId(goal.id)}
                     className="bg-foreground/5 hover:bg-foreground/10 text-foreground px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide border border-border transition-colors"
                   >
                     + {formatCurrency(goal.weekly_contribution)}
@@ -85,6 +88,13 @@ export function SavingsPage() {
           )
         })}
       </div>
+      
+      <AddContributionForm 
+        isOpen={!!activeGoalId} 
+        onClose={() => setActiveGoalId(null)} 
+        goalId={activeGoalId || ''} 
+        suggestedAmount={goals.find(g => g.id === activeGoalId)?.weekly_contribution || 0}
+      />
     </div>
   )
 }

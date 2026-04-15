@@ -2,9 +2,12 @@ import { Plus } from 'lucide-react'
 import { useDebts } from '@/hooks/useDebts'
 import { formatCurrency } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { useState } from 'react'
+import { LogPaymentForm } from '@/components/modals/forms/LogPaymentForm'
 
 export function DebtsPage() {
-  const { debts, isLoading, logPayment, markBNPLPaid } = useDebts()
+  const { debts, isLoading, markBNPLPaid } = useDebts()
+  const [activeDebtId, setActiveDebtId] = useState<string | null>(null)
 
   if (isLoading) return <div className="text-foreground/50 text-center py-4 font-medium text-sm">Syncing debts...</div>
 
@@ -76,7 +79,7 @@ export function DebtsPage() {
                 {!isSettled && debt.minimum_payment && (
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => logPayment.mutate({ debtId: debt.id, amount: debt.minimum_payment! })}
+                    onClick={() => setActiveDebtId(debt.id)}
                     className="bg-foreground text-background px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wide shadow-sm"
                   >
                     Log Payment
@@ -85,10 +88,10 @@ export function DebtsPage() {
                 {!isSettled && !debt.minimum_payment && (
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => logPayment.mutate({ debtId: debt.id, amount: 50 })}
+                    onClick={() => setActiveDebtId(debt.id)}
                     className="bg-foreground text-background px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wide shadow-sm"
                   >
-                    Log £50
+                    Log Payment
                   </motion.button>
                 )}
               </div>
@@ -133,7 +136,12 @@ export function DebtsPage() {
         )}
       </div>
 
-
+      <LogPaymentForm 
+        isOpen={!!activeDebtId} 
+        onClose={() => setActiveDebtId(null)} 
+        debtId={activeDebtId || ''} 
+        suggestedAmount={debts.find(d => d.id === activeDebtId)?.minimum_payment}
+      />
     </div>
   )
 }

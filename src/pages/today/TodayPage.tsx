@@ -10,6 +10,7 @@ import { useSubscriptions } from '@/hooks/useSubscriptions'
 import { useDebts } from '@/hooks/useDebts'
 import { useSavings } from '@/hooks/useSavings'
 import { useIncome } from '@/hooks/useIncome'
+import { useProfile } from '@/hooks/useProfile'
 import { Bell, PieChart, Plus, User, Settings, CreditCard, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/components/theme-provider'
@@ -37,18 +38,9 @@ export function TodayPage() {
   const { goals: savingsGoals } = useSavings()
   const { incomeEntries, logIncome } = useIncome()
 
+  const { profile } = useProfile()
+
   const netPosition = calculateNetPosition(accounts)
-  
-  const profile = {
-    id: user?.id || '',
-    display_name: 'Vilson',
-    currency: 'GBP',
-    income_frequency: 'weekly',
-    income_amount: 400,
-    income_day: 1,
-    tithe_percentage: 10,
-    onboarding_complete: true
-  }
 
   const actionItems = getActionItems({
     bills, subscriptions, debts, obligations, savingsGoals, incomeEntries, profile
@@ -58,7 +50,7 @@ export function TodayPage() {
 
   const handleAction = (item: any) => {
     if (item.type === 'payday') {
-      logIncome.mutate({ amount: profile.income_amount, payment_method: 'bank_transfer' })
+      logIncome.mutate({ amount: profile?.income_amount || 0, payment_method: 'bank_transfer' })
       toast("Income logged! ✓")
     } else if (item.canMarkPaid) {
       if (item.referenceId) {

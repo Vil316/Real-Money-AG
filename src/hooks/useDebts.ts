@@ -23,24 +23,43 @@ export function useDebts() {
   })
 
   const logPayment = useMutation({
-    mutationFn: async ({ debtId, amount }: { debtId: string, amount: number }) => {
-      // 1. Log payment
-      const { error: paymentError } = await supabase.from('debt_payments').insert([{
-        debt_id: debtId,
-        user_id: user?.id,
-        amount
-      }])
-      if (paymentError) throw paymentError
-
-      // 2. Update debt balance
+    mutationFn: async ({ debtId, amount, accountId }: { debtId: string, amount: number, accountId: string }) => {
+      // 1. Get Debt
       const debt = debts?.find(d => d.id === debtId)
-      if (debt) {
-        await supabase.from('debts').update({
-          current_balance: Math.max(0, Number(debt.current_balance) - amount)
-        }).eq('id', debtId)
+      if (!debt) throw new Error("Debt not found")
+
+      // 2. Update Debt Balance
+      const { error: debtErr } = await supabase.from('debts').update({
+        current_balance: Math.max(0, Number(debt.current_balance) - amount),
+        is_settled: Math.max(0, Number(debt.current_balance) - amount) === 0
+      }).eq('id', debtId)
+      if (debtErr) throw debtErr
+
+      // 3. Log Source Transaction
+      const { error: txErr } = await supabase.from('transactions').insert([{
+        user_id: user?.id,
+        account_id: accountId,
+        amount: -Math.abs(amount),
+        merchant: `Payment to ${debt.creditor_name}`,
+        category: 'Debt Repayment',
+        is_pending: false,
+        notes: `Automated debt mapping for ${debt.creditor_name}`
+      }])
+      if (txErr) throw txErr
+
+      // 4. Update Source Account Balance (Mechanical Deduct)
+      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', accountId).single()
+      if (accData) {
+        await supabase.from('accounts').update({
+          balance: Number(accData.balance) - amount
+        }).eq('id', accountId)
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['debts', user?.id] })
+    onSuccess: (_, v) => {
+      queryClient.invalidateQueries({ queryKey: ['debts', user?.id] })
+      queryClient.invalidateQueries({ queryKey: ['transactions', user?.id, v.accountId] })
+      queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] })
+    }
   })
 
   const markBNPLPaid = useMutation({

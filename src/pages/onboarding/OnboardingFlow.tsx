@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/hooks/useAuth'
-import { mockDB } from '@/lib/mockDB'
+import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/glass/GlassCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,45 +43,53 @@ export function OnboardingFlow() {
     if (!user) return
     setSubmitting(true)
 
-    // Update Mock Profile
-    mockDB.profile.income_frequency = form.incomeFrequency
-    mockDB.profile.income_amount = form.incomeAmount
-    mockDB.profile.income_day = form.incomeDay
-    mockDB.profile.tithe_percentage = form.tithe ? form.tithePercentage : 0
-    mockDB.profile.onboarding_complete = true
+    try {
+      // 1. Update Profile natively
+      const { error: profileErr } = await supabase.from('profiles').update({
+        income_frequency: form.incomeFrequency,
+        income_amount: form.incomeAmount,
+        income_day: form.incomeDay,
+        tithe_percentage: form.tithe ? form.tithePercentage : 0,
+        onboarding_complete: true
+      }).eq('id', user.id)
+      
+      if (profileErr) throw profileErr
 
-    // Add Obligations
-    if (form.tithe) {
-      mockDB.obligations.push({
-        id: Math.random().toString(), user_id: user.id, name: 'Tithe', type: 'tithe', amount_type: 'percentage', percentage_of: 'income_weekly', frequency: 'weekly', is_fulfilled_this_cycle: false, amount: form.tithePercentage, is_active: true
-      })
-    }
-    if (form.family) {
-      mockDB.obligations.push({
-        id: Math.random().toString(), user_id: user.id, name: 'Family Support', type: 'family', amount_type: 'fixed', amount: form.familyAmount, frequency: 'monthly', is_fulfilled_this_cycle: false, is_active: true
-      })
-    }
+      // 2. Add Obligations
+      if (form.tithe) {
+        await supabase.from('obligations').insert([{
+          user_id: user.id, name: 'Tithe', type: 'tithe', amount_type: 'percentage', percentage_of: 'income_weekly', frequency: 'weekly', is_fulfilled_this_cycle: false, amount: form.tithePercentage, is_active: true
+        }])
+      }
+      if (form.family) {
+        await supabase.from('obligations').insert([{
+          user_id: user.id, name: 'Family Support', type: 'family', amount_type: 'fixed', amount: form.familyAmount, frequency: 'monthly', is_fulfilled_this_cycle: false, is_active: true
+        }])
+      }
 
-    // Add Accounts
-    if (form.accounts.length > 0) {
-      const accountsToInsert = form.accounts.map(acc => ({
-        id: Math.random().toString(),
-        user_id: user.id,
-        name: acc.name,
-        type: acc.type,
-        balance: acc.balance,
-        currency: 'GBP',
-        colour: '#14b8a6',
-        is_archived: false,
-        is_manual: true
-      }))
-      mockDB.accounts.push(...accountsToInsert as any[])
-    }
+      // 3. Add Accounts
+      if (form.accounts.length > 0) {
+        const accountsToInsert = form.accounts.map(acc => ({
+          user_id: user.id,
+          name: acc.name,
+          type: acc.type,
+          balance: acc.balance,
+          currency: 'GBP',
+          colour: '#14b8a6',
+          is_archived: false,
+          is_manual: true
+        }))
+        await supabase.from('accounts').insert(accountsToInsert)
+      }
 
-    // Since we bypass the server, we simulate a slight delay
-    setTimeout(() => {
-      navigate('/today')
-    }, 500)
+      // Transition smoothly
+      setTimeout(() => {
+        navigate('/today')
+      }, 500)
+    } catch (error) {
+      console.error("Setup failed:", error)
+      setSubmitting(false)
+    }
   }
 
   // Define components for each step
