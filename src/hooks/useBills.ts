@@ -45,5 +45,13 @@ export function useBills() {
     }
   })
 
-  return { bills: bills ?? [], isLoading, markPaid }
+  const addBill = useMutation({
+    mutationFn: async (newBill: any) => {
+      const { error } = await supabase.from('bills').insert([{ ...newBill, user_id: user?.id }])
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bills', user?.id] })
+  })
+
+  return { bills: bills ?? [], isLoading, markPaid, addBill }
 }

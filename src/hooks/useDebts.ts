@@ -51,5 +51,13 @@ export function useDebts() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['debts', user?.id] })
   })
 
-  return { debts: debts ?? [], isLoading, logPayment, markBNPLPaid }
+  const addDebt = useMutation({
+    mutationFn: async (newDebt: any) => {
+      const { error } = await supabase.from('debts').insert([{ ...newDebt, user_id: user?.id }])
+      if (error) throw error
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['debts', user?.id] })
+  })
+
+  return { debts: debts ?? [], isLoading, logPayment, markBNPLPaid, addDebt }
 }
