@@ -110,6 +110,7 @@ export interface Debt {
   account_id?: string
   notes?: string
   is_settled: boolean
+  name?: string
 }
 
 export interface BNPLInstalment {

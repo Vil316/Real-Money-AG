@@ -12,7 +12,7 @@ const navItems = [
   { label: 'Debts', path: '/debts', icon: CreditCard },
 ]
 
-const springConfig = { type: "spring", stiffness: 350, damping: 28, mass: 0.8 }
+const springConfig = { type: "spring", stiffness: 350, damping: 28, mass: 0.8 } as any
 
 export function BottomNav() {
   const location = useLocation()
