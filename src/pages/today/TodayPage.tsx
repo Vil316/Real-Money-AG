@@ -13,11 +13,20 @@ import { useIncome } from '@/hooks/useIncome'
 import { Bell, PieChart, Plus, User, Settings, CreditCard, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/components/theme-provider'
+import { ProfileDrawer } from '@/components/modals/ProfileDrawer'
+import { AddMenuDrawer } from '@/components/modals/AddMenuDrawer'
+import { AddAccountForm } from '@/components/modals/forms/AddAccountForm'
+import { AddBillForm } from '@/components/modals/forms/AddBillForm'
+import { AddDebtForm } from '@/components/modals/forms/AddDebtForm'
 
 export function TodayPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { theme, setTheme } = useTheme()
+
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
+  const [activeActionForm, setActiveActionForm] = useState<string | null>(null)
   
   const { accounts } = useAccounts()
   const { bills, markPaid } = useBills()
@@ -74,18 +83,12 @@ export function TodayPage() {
     setTimeout(() => setToasts(prev => prev.slice(1)), 3000)
   }
 
-  const cycleTheme = () => {
-    if (theme === 'system') setTheme('dark')
-    else if (theme === 'dark') setTheme('light')
-    else setTheme('system')
-  }
-
   return (
     <>
       {/* Header — Profile Left, Pill + Teal Add Button Right */}
       <div className="flex justify-between items-center mb-6 px-3 mt-4">
         <div 
-          onClick={cycleTheme}
+          onClick={() => setIsProfileOpen(true)}
           className="w-12 h-12 rounded-full border border-border overflow-hidden bg-card/80 flex items-center justify-center p-0.5 shadow-sm cursor-pointer hover:scale-105 active:scale-95 transition-all"
         >
           <div className="w-full h-full rounded-full bg-foreground/10 flex items-center justify-center">
@@ -98,7 +101,10 @@ export function TodayPage() {
             <PieChart size={18} className="text-foreground cursor-pointer hover:opacity-70" />
             <Bell size={18} className="text-foreground cursor-pointer hover:opacity-70" />
           </div>
-          <button className="w-11 h-11 bg-[#0B8289] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all">
+          <button 
+            onClick={() => setIsAddMenuOpen(true)}
+            className="w-11 h-11 bg-[#0B8289] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all"
+          >
             <Plus size={18} strokeWidth={2.5} />
           </button>
         </div>
@@ -215,6 +221,16 @@ export function TodayPage() {
           ))}
         </AnimatePresence>
       </div>
+
+      <ProfileDrawer isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+      <AddMenuDrawer 
+        isOpen={isAddMenuOpen} 
+        onClose={() => setIsAddMenuOpen(false)} 
+        onSelectAction={(actionId) => setActiveActionForm(actionId)}
+      />
+      <AddAccountForm isOpen={activeActionForm === 'account'} onClose={() => setActiveActionForm(null)} />
+      <AddBillForm isOpen={activeActionForm === 'bill'} onClose={() => setActiveActionForm(null)} />
+      <AddDebtForm isOpen={activeActionForm === 'debt'} onClose={() => setActiveActionForm(null)} />
     </>
   )
 }
