@@ -43,7 +43,7 @@ export function TodayPage() {
   const netPosition = calculateNetPosition(accounts)
 
   const actionItems = getActionItems({
-    bills, subscriptions, debts, obligations, savingsGoals, incomeEntries, profile
+    bills, subscriptions, debts, obligations, savingsGoals, incomeEntries, profile: profile ?? null
   })
 
   const [toasts, setToasts] = useState<string[]>([])
