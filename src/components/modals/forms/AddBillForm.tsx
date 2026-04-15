@@ -20,7 +20,7 @@ export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
       name,
       amount: Number(amount),
       frequency,
-      next_due_date: new Date(nextDate).toISOString(),
+      next_due_date: nextDate,
       category: 'utility',
       is_active: true
     }, {
