@@ -29,37 +29,21 @@ export function useTransactions(accountId?: string) {
 
   const addTransaction = useMutation({
     mutationFn: async ({ account_id, amount, merchant_raw, category_id, is_pending, notes, source_type }: Partial<Transaction>) => {
-      // 1. Insert transaction
-      const { error: txError } = await supabase.from('transactions').insert([{
-        user_id: user?.id,
-        account_id,
-        amount,
-        merchant_raw,
-        category_id,
-        source_type: source_type || 'manual',
-        is_pending: is_pending ?? false,
-        notes
-      }])
-      
-      if (txError) throw txError
+      if (!account_id || amount == null || !merchant_raw) {
+        throw new Error('Transaction account, amount, and merchant are required')
+      }
 
-      // 2. Fetch current balance to update it efficiently atomic
-      const { data: accData, error: accErr } = await supabase
-        .from('accounts')
-        .select('balance')
-        .eq('id', account_id)
-        .single()
-        
-      if (accErr) throw accErr
+      const { error } = await supabase.rpc('insert_manual_transaction', {
+        p_account_id: account_id,
+        p_amount: amount,
+        p_merchant_raw: merchant_raw,
+        p_category_id: category_id ?? null,
+        p_is_pending: is_pending ?? false,
+        p_notes: notes ?? null,
+        p_source_type: source_type ?? 'manual',
+      })
 
-      const newBalance = Number(accData.balance) + Number(amount)
-      
-      const { error: updateErr } = await supabase
-        .from('accounts')
-        .update({ balance: newBalance, last_updated: new Date().toISOString() })
-        .eq('id', account_id)
-
-      if (updateErr) throw updateErr
+      if (error) throw error
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['transactions', user?.id, variables.account_id] })

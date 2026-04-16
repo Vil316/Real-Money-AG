@@ -10,7 +10,7 @@ export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [nextDate, setNextDate] = useState('')
-  const [frequency, setFrequency] = useState<'monthly'|'weekly'|'yearly'>('monthly')
+  const [frequency, setFrequency] = useState<'monthly'|'weekly'|'annual'>('monthly')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,7 +58,7 @@ export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
         <div className="space-y-3 pt-2">
           <Label className="text-xs uppercase tracking-widest text-foreground/50">Frequency</Label>
           <div className="grid grid-cols-3 gap-2">
-            {(['weekly', 'monthly', 'yearly'] as const).map(t => (
+            {(['weekly', 'monthly', 'annual'] as const).map(t => (
                <button 
                   type="button" 
                   key={t} 

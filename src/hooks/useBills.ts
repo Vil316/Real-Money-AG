@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase'
 import type { Bill } from '@/types'
 import { useAuth } from './useAuth'
 
+type NewBill = Pick<Bill, 'name' | 'amount' | 'frequency' | 'next_due_date' | 'category' | 'is_active' | 'notes' | 'account_id'>
+
 export function useBills() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
@@ -23,25 +25,11 @@ export function useBills() {
 
   const markPaid = useMutation({
     mutationFn: async ({ id, nextDueDate }: { id: string, nextDueDate: string }) => {
-      // 1. Mark Bill Paid
-      const { error } = await supabase.from('bills').update({
-        next_due_date: nextDueDate,
-        is_paid_this_cycle: true
-      }).eq('id', id)
+      const { error } = await supabase.rpc('mark_bill_paid', {
+        p_bill_id: id,
+        p_next_due_date: nextDueDate,
+      })
       if (error) throw error
-
-      // 2. Automated Ledger Tracking (Double Entry)
-      const bill = bills?.find(b => b.id === id)
-      if (bill && bill.account_id) {
-        // Run atomic ledger deduction independently in background
-        supabase.from('transactions').insert([{
-          user_id: user?.id, account_id: bill.account_id, amount: -Math.abs(bill.amount), merchant_raw: bill.name, source_type: 'manual', is_pending: false, notes: 'Auto-paid from Bills Dashboard'
-        }]).then(() => {
-          supabase.from('accounts').select('balance').eq('id', bill.account_id).single().then(({ data }) => {
-            if (data) supabase.from('accounts').update({ balance: Number(data.balance) - bill.amount }).eq('id', bill.account_id)
-          })
-        })
-      }
     },
     onMutate: async ({ id, nextDueDate }) => {
       await queryClient.cancelQueries({ queryKey: ['bills', user?.id] })
@@ -60,7 +48,7 @@ export function useBills() {
   })
 
   const addBill = useMutation({
-    mutationFn: async (newBill: any) => {
+    mutationFn: async (newBill: NewBill) => {
       const { error } = await supabase.from('bills').insert([{ ...newBill, user_id: user?.id }])
       if (error) throw error
     },

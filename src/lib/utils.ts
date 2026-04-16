@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import type { Account, Profile, Bill, Subscription, Obligation, SavingsGoal, IncomeEntry, ActionItem, FrequencyType, Debt } from '@/types'
-import { differenceInDays, add, format, parseISO, startOfWeek, isToday, isTomorrow, getDay } from 'date-fns'
+import { differenceInDays, add, format, parseISO, isToday, isTomorrow } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

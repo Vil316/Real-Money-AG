@@ -82,8 +82,19 @@ serve(async (req) => {
        }
     }).filter(tx => tx.account_id != null) // drop transactions for detached accounts
 
+    let insertedCount = 0
+
     if (mappedTransactions.length > 0) {
-       const { data: insertedTxs } = await supabaseAdmin.from('transactions').insert(mappedTransactions).select()
+       const { data: insertedTxs, error: insertError } = await supabaseAdmin
+         .from('transactions')
+         .upsert(mappedTransactions, {
+           onConflict: 'user_id,external_transaction_id',
+           ignoreDuplicates: true,
+         })
+         .select()
+
+       if (insertError) throw insertError
+       insertedCount = insertedTxs?.length ?? 0
        
        // Fire and forget intelligence categorizer asynchronously into isolated queue
        if (insertedTxs && insertedTxs.length > 0) {
@@ -99,7 +110,7 @@ serve(async (req) => {
     // Record next cursor
     await supabaseAdmin.from('plaid_connections').update({ sync_cursor: cursor, last_synced_at: new Date() }).eq('item_id', item_id)
 
-    return new Response(JSON.stringify({ success: true, added: added.length }), {
+    return new Response(JSON.stringify({ success: true, added: added.length, inserted: insertedCount }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })

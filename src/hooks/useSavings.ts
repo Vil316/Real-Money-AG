@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import type { SavingsGoal, SavingsContribution } from '@/types'
+import type { SavingsGoal } from '@/types'
 import { useAuth } from './useAuth'
+
+type NewSavingsGoal = Pick<SavingsGoal, 'name' | 'target_amount' | 'current_amount' | 'colour' | 'is_completed'> &
+  Partial<Pick<SavingsGoal, 'target_date' | 'linked_account_id' | 'is_challenge' | 'weekly_contribution'>>
 
 export function useSavings() {
   const { user } = useAuth()
@@ -23,40 +26,13 @@ export function useSavings() {
 
   const addContribution = useMutation({
     mutationFn: async ({ goalId, amount, accountId }: { goalId: string, amount: number, accountId: string }) => {
-      // 1. Insert contribution
-      const { error: contribError } = await supabase.from('savings_contributions').insert([{
-        goal_id: goalId,
-        user_id: user?.id,
-        amount
-      }])
-      if (contribError) throw contribError
+      const { error } = await supabase.rpc('add_savings_contribution', {
+        p_goal_id: goalId,
+        p_account_id: accountId,
+        p_amount: amount,
+      })
 
-      // 2. Update goal total
-      const goal = goals?.find(g => g.id === goalId)
-      if (goal) {
-        await supabase.from('savings_goals').update({
-          current_amount: Number(goal.current_amount) + amount
-        }).eq('id', goalId)
-      }
-
-      // 3. Log Transfer in Transactions
-      const { error: txErr } = await supabase.from('transactions').insert([{
-        user_id: user?.id,
-        account_id: accountId,
-        amount: -Math.abs(amount),
-        merchant_raw: `Transfer to ${goal?.name || 'Savings'}`,
-        source_type: 'manual',
-        is_pending: false
-      }])
-      if (txErr) throw txErr
-
-      // 4. Update Source Account negatively
-      const { data: accData } = await supabase.from('accounts').select('balance').eq('id', accountId).single()
-      if (accData) {
-        await supabase.from('accounts').update({
-          balance: Number(accData.balance) - amount
-        }).eq('id', accountId)
-      }
+      if (error) throw error
     },
     onSuccess: (_, v) => {
       queryClient.invalidateQueries({ queryKey: ['savings', user?.id] })
@@ -66,7 +42,7 @@ export function useSavings() {
   })
 
   const addGoal = useMutation({
-    mutationFn: async (newGoal: any) => {
+    mutationFn: async (newGoal: NewSavingsGoal) => {
       const { error } = await supabase.from('savings_goals').insert([{ ...newGoal, user_id: user?.id }])
       if (error) throw error
     },

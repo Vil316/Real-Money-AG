@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Home, Wallet, PieChart, Target, CreditCard } from 'lucide-react'
-import { motion, useScroll, useMotionValueEvent } from 'framer-motion'
+import { motion, useScroll, useMotionValueEvent, type Transition } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -12,7 +12,7 @@ const navItems = [
   { label: 'Debts', path: '/debts', icon: CreditCard },
 ]
 
-const springConfig = { type: "spring", stiffness: 350, damping: 28, mass: 0.8 } as any
+const springConfig: Transition = { type: 'spring', stiffness: 350, damping: 28, mass: 0.8 }
 
 export function BottomNav() {
   const location = useLocation()
@@ -29,8 +29,8 @@ export function BottomNav() {
         layout
         transition={springConfig}
         className={cn(
-          "nav-glass flex items-center justify-between pointer-events-auto overflow-hidden",
-          scrolled ? "p-[8px] gap-2" : "p-[6px] gap-1 w-full max-w-sm"
+          "flex items-center justify-between pointer-events-auto overflow-hidden rounded-full border border-white/[0.08] bg-[#111418]/88 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl",
+          scrolled ? "gap-2 p-[8px]" : "w-full max-w-sm gap-1 p-[6px]"
         )}
       >
         {navItems.map((item) => {
@@ -51,12 +51,14 @@ export function BottomNav() {
                 to={item.path}
                 className={cn(
                   "absolute inset-0 z-20 rounded-full transition-colors duration-300",
-                  isActive ? "bg-foreground/10" : "hover:bg-foreground/5"
+                  isActive
+                    ? "bg-[#0B8289]/16 shadow-[inset_0_0_0_1px_rgba(11,130,137,0.26),0_0_24px_rgba(11,130,137,0.18)]"
+                    : "hover:bg-white/[0.04]"
                 )}
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               />
               
-              <motion.div layout="position" transition={springConfig} className={cn("relative z-10 pointer-events-none transition-colors duration-300", isActive ? "text-foreground" : "text-foreground/40")}>
+              <motion.div layout="position" transition={springConfig} className={cn("relative z-10 pointer-events-none transition-colors duration-300", isActive ? "text-white" : "text-white/40")}>
                 <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
               </motion.div>
               
@@ -73,7 +75,7 @@ export function BottomNav() {
                 }}
                 className={cn(
                   "text-[10px] font-medium tracking-wide block overflow-hidden relative z-10 pointer-events-none transition-colors duration-300 whitespace-nowrap",
-                  isActive ? "text-foreground" : "text-foreground/50"
+                  isActive ? "text-white" : "text-white/50"
                 )}
               >
                 {item.label}

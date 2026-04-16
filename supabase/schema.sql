@@ -207,6 +207,10 @@ CREATE TABLE IF NOT EXISTS public.transactions (
   notes TEXT
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_user_external_transaction_id_key
+  ON public.transactions (user_id, external_transaction_id)
+  WHERE external_transaction_id IS NOT NULL;
+
 -- 11. ACTION ITEMS
 CREATE TABLE IF NOT EXISTS public.action_items (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -259,3 +263,240 @@ BEGIN
     EXECUTE format('CREATE POLICY "Users can fully control their own %I" ON public.%I FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);', table_name, table_name);
   END LOOP;
 END $$;
+
+CREATE OR REPLACE FUNCTION public.insert_manual_transaction(
+  p_account_id UUID,
+  p_amount NUMERIC,
+  p_merchant_raw TEXT,
+  p_category_id UUID DEFAULT NULL,
+  p_is_pending BOOLEAN DEFAULT FALSE,
+  p_notes TEXT DEFAULT NULL,
+  p_source_type TEXT DEFAULT 'manual',
+  p_date TIMESTAMPTZ DEFAULT NOW()
+)
+RETURNS public.transactions
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  account_row public.accounts%ROWTYPE;
+  new_transaction public.transactions%ROWTYPE;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  SELECT *
+  INTO account_row
+  FROM public.accounts
+  WHERE id = p_account_id
+    AND user_id = auth.uid()
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Account not found';
+  END IF;
+
+  INSERT INTO public.transactions (
+    user_id,
+    account_id,
+    amount,
+    merchant_raw,
+    category_id,
+    source_type,
+    is_pending,
+    notes,
+    date,
+    currency
+  )
+  VALUES (
+    auth.uid(),
+    p_account_id,
+    p_amount,
+    p_merchant_raw,
+    p_category_id,
+    COALESCE(p_source_type, 'manual'),
+    COALESCE(p_is_pending, FALSE),
+    p_notes,
+    COALESCE(p_date, NOW()),
+    account_row.currency
+  )
+  RETURNING * INTO new_transaction;
+
+  UPDATE public.accounts
+  SET balance = balance + p_amount,
+      last_updated = NOW()
+  WHERE id = p_account_id;
+
+  RETURN new_transaction;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.mark_bill_paid(
+  p_bill_id UUID,
+  p_next_due_date DATE,
+  p_notes TEXT DEFAULT 'Auto-paid from Bills Dashboard'
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  bill_row public.bills%ROWTYPE;
+  account_row public.accounts%ROWTYPE;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  SELECT *
+  INTO bill_row
+  FROM public.bills
+  WHERE id = p_bill_id
+    AND user_id = auth.uid()
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Bill not found';
+  END IF;
+
+  UPDATE public.bills
+  SET next_due_date = p_next_due_date,
+      is_paid_this_cycle = TRUE
+  WHERE id = p_bill_id;
+
+  IF bill_row.account_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT *
+  INTO account_row
+  FROM public.accounts
+  WHERE id = bill_row.account_id
+    AND user_id = auth.uid()
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Linked account not found';
+  END IF;
+
+  INSERT INTO public.transactions (
+    user_id,
+    account_id,
+    amount,
+    merchant_raw,
+    source_type,
+    is_pending,
+    notes,
+    currency
+  )
+  VALUES (
+    auth.uid(),
+    bill_row.account_id,
+    -ABS(bill_row.amount),
+    bill_row.name,
+    'manual',
+    FALSE,
+    p_notes,
+    account_row.currency
+  );
+
+  UPDATE public.accounts
+  SET balance = balance - ABS(bill_row.amount),
+      last_updated = NOW()
+  WHERE id = bill_row.account_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.add_savings_contribution(
+  p_goal_id UUID,
+  p_account_id UUID,
+  p_amount NUMERIC,
+  p_notes TEXT DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  goal_row public.savings_goals%ROWTYPE;
+  account_row public.accounts%ROWTYPE;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  SELECT *
+  INTO goal_row
+  FROM public.savings_goals
+  WHERE id = p_goal_id
+    AND user_id = auth.uid()
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Savings goal not found';
+  END IF;
+
+  SELECT *
+  INTO account_row
+  FROM public.accounts
+  WHERE id = p_account_id
+    AND user_id = auth.uid()
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Funding account not found';
+  END IF;
+
+  INSERT INTO public.savings_contributions (
+    goal_id,
+    user_id,
+    amount,
+    notes
+  )
+  VALUES (
+    p_goal_id,
+    auth.uid(),
+    p_amount,
+    p_notes
+  );
+
+  UPDATE public.savings_goals
+  SET current_amount = current_amount + p_amount,
+      is_completed = (current_amount + p_amount) >= target_amount
+  WHERE id = p_goal_id;
+
+  INSERT INTO public.transactions (
+    user_id,
+    account_id,
+    amount,
+    merchant_raw,
+    source_type,
+    is_pending,
+    notes,
+    currency
+  )
+  VALUES (
+    auth.uid(),
+    p_account_id,
+    -ABS(p_amount),
+    CONCAT('Transfer to ', goal_row.name),
+    'manual',
+    FALSE,
+    COALESCE(p_notes, CONCAT('Savings contribution to ', goal_row.name)),
+    account_row.currency
+  );
+
+  UPDATE public.accounts
+  SET balance = balance - ABS(p_amount),
+      last_updated = NOW()
+  WHERE id = p_account_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.insert_manual_transaction(UUID, NUMERIC, TEXT, UUID, BOOLEAN, TEXT, TEXT, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_bill_paid(UUID, DATE, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.add_savings_contribution(UUID, UUID, NUMERIC, TEXT) TO authenticated;

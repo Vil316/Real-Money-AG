@@ -1,4 +1,63 @@
-# React + TypeScript + Vite
+# Real Money
+
+Real Money is a mobile-first personal finance app built with React, Vite, Supabase, and Plaid. The current codebase includes onboarding, account tracking, recurring bills, savings goals, debts, and transaction sync flows.
+
+## Stack
+
+- React 18 + TypeScript + Vite
+- Tailwind CSS + Radix UI + Framer Motion
+- Supabase Auth, Postgres, and Edge Functions
+- Plaid transaction and balance sync
+- React Query for client-side data fetching and caching
+
+## Local Setup
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Copy the environment template and fill in your Supabase project values:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Start the app:
+
+   ```bash
+   npm run dev
+   ```
+
+## Environment Variables
+
+The frontend expects these values in `.env`:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+Supabase Edge Functions also require the relevant server-side secrets in your Supabase project environment, including Plaid credentials and any AI provider keys used by the categorization flow.
+
+## Scripts
+
+- `npm run dev` starts the Vite dev server
+- `npm run build` runs TypeScript build checks and creates a production bundle
+- `npm run lint` runs ESLint across the workspace
+- `npm run test` runs the Vitest suite once
+- `npm run test:watch` starts Vitest in watch mode
+
+## Supabase Notes
+
+- Database schema lives in `supabase/schema.sql`
+- Initial migration lives in `supabase/migrations/20260414_init.sql`
+- Function-specific Supabase local config lives in `supabase/config.toml`
+
+## Current Hardening Focus
+
+- Atomic ledger updates now run through database RPC functions instead of multi-step client mutations
+- Synced Plaid transactions are protected by a unique `(user_id, external_transaction_id)` constraint
+- Financial helper coverage has been added first; broader integration coverage is still needed# React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
