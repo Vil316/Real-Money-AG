@@ -1,9 +1,14 @@
 import { useState } from 'react'
 import { BottomSheet } from '../../ui/bottom-sheet'
-import { Input } from '../../ui/input'
 import { FileText } from 'lucide-react'
 import { useBills } from '@/hooks/useBills'
-import { SheetPrimaryButton, SheetSection, SheetSelectorButton, sheetInputClassName } from '../sheet-primitives'
+import {
+  SheetPrimaryButton,
+  SheetSection,
+  SheetSegmentedSelector,
+  SheetTextField,
+  type SheetSegmentOption,
+} from '../sheet-primitives'
 
 export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { addBill } = useBills()
@@ -11,6 +16,12 @@ export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
   const [amount, setAmount] = useState('')
   const [nextDate, setNextDate] = useState('')
   const [frequency, setFrequency] = useState<'monthly'|'weekly'|'annual'>('monthly')
+
+  const frequencyOptions: SheetSegmentOption[] = [
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'annual', label: 'Annual' },
+  ]
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,54 +51,48 @@ export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
       headerMeta="Track fixed commitments with a clean billing cadence"
       headerIcon={<FileText size={16} strokeWidth={2.2} />}
     >
-      <form onSubmit={handleSubmit} className="mt-2 space-y-4 pb-1">
+      <form onSubmit={handleSubmit} className="mt-1.5 space-y-3.5 pb-1">
         <SheetSection label="Details" meta="Bill identity and cost">
-          <Input 
+          <SheetTextField
             placeholder="Bill Name (e.g. Netflix, Water)" 
             value={name} 
             onChange={e => setName(e.target.value)} 
             required 
             autoFocus
-            className={sheetInputClassName}
           />
-          <Input 
+          <SheetTextField
             type="number" 
             step="0.01" 
             placeholder="Cost Amount (£0.00)" 
             value={amount} 
             onChange={e => setAmount(e.target.value)} 
             required 
-            className={`${sheetInputClassName} font-medium`}
+            className="font-medium"
           />
         </SheetSection>
 
         <SheetSection label="Frequency" meta="How often this bill returns">
-          <div className="grid grid-cols-3 gap-2">
-            {(['weekly', 'monthly', 'annual'] as const).map(t => (
-              <SheetSelectorButton
-                key={t}
-                selected={frequency === t}
-                tone="purple"
-                onClick={() => setFrequency(t)}
-                className="capitalize"
-              >
-                {t}
-              </SheetSelectorButton>
-            ))}
-          </div>
+          <SheetSegmentedSelector
+            value={frequency}
+            onChange={(value) => setFrequency(value as typeof frequency)}
+            options={frequencyOptions}
+            tone="purple"
+            columns={3}
+            optionClassName="py-2.5"
+          />
         </SheetSection>
 
         <SheetSection label="Next Due Date" meta="First scheduled payment date">
-          <Input 
+          <SheetTextField
             type="date"
             value={nextDate} 
             onChange={e => setNextDate(e.target.value)} 
             required 
-            className={`${sheetInputClassName} w-full`}
+            className="w-full"
           />
         </SheetSection>
 
-        <SheetPrimaryButton type="submit" tone="purple">
+        <SheetPrimaryButton type="submit" tone="purple" className="shadow-[0_12px_22px_rgba(88,72,170,0.3)]">
           Save Bill
         </SheetPrimaryButton>
       </form>

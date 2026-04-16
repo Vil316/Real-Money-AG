@@ -25,7 +25,7 @@ export function AddMenuDrawer({ isOpen, onClose, onSelectAction }: AddMenuProps)
       headerMeta="Choose what to create in your financial operating system"
       headerIcon={<Sparkles size={16} strokeWidth={2.2} />}
     >
-      <div className="mt-2 grid grid-cols-2 gap-3 pb-1">
+      <div className="mt-1.5 grid grid-cols-2 gap-3.5 pb-1">
         {actions.map((act) => {
           return (
             <SheetCommandTile
@@ -34,6 +34,7 @@ export function AddMenuDrawer({ isOpen, onClose, onSelectAction }: AddMenuProps)
               label={act.label}
               description={act.description}
               tone={act.tone}
+              className="p-[18px]"
               onClick={() => {
                 onClose(); 
                 // Slight delay allows the menu drawer to visibly close before firing the secondary form

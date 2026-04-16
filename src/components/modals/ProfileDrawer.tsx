@@ -3,11 +3,35 @@ import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '../theme-provider'
 import { LogOut, Moon, Sun, Monitor, Settings2 } from 'lucide-react'
-import { SheetPrimaryButton, SheetSection, SheetSelectorButton } from './sheet-primitives'
+import {
+  SheetIdentityChip,
+  SheetPrimaryButton,
+  SheetSection,
+  SheetSegmentedSelector,
+  type SheetSegmentOption,
+} from './sheet-primitives'
 
 export function ProfileDrawer({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { user } = useAuth()
   const { theme, setTheme } = useTheme()
+
+  const appearanceOptions: SheetSegmentOption[] = [
+    {
+      value: 'light',
+      label: 'Light',
+      icon: <Sun size={15} />,
+    },
+    {
+      value: 'dark',
+      label: 'Dark',
+      icon: <Moon size={15} />,
+    },
+    {
+      value: 'system',
+      label: 'Auto',
+      icon: <Monitor size={15} />,
+    },
+  ]
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -21,10 +45,10 @@ export function ProfileDrawer({ isOpen, onClose }: { isOpen: boolean, onClose: (
       onClose={onClose}
       title="Profile & Settings"
       contextLabel="System Profile"
-      headerMeta={user?.email || 'Authenticated user'}
+      headerMeta="Preferences, theme, and session controls"
       headerIcon={<Settings2 size={16} strokeWidth={2.2} />}
     >
-      <div className="mt-2 space-y-4 pb-1">
+      <div className="mt-1.5 space-y-3.5 pb-1">
         <SheetSection label="Identity" meta="Authenticated session details">
           <div className="flex items-center gap-4 rounded-[20px] border border-white/[0.1] bg-white/[0.03] p-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.1] bg-white text-[#0b1114]">
@@ -34,42 +58,26 @@ export function ProfileDrawer({ isOpen, onClose }: { isOpen: boolean, onClose: (
               <p className="truncate text-[14px] font-semibold tracking-[0.01em] text-white">{user?.email || 'Authenticated User'}</p>
               <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.11em] text-white/46">ID {user?.id.substring(0, 8)}...</p>
             </div>
+            <SheetIdentityChip label="Active" tone="neutral" className="ml-auto" />
           </div>
         </SheetSection>
 
         <SheetSection label="Appearance" meta="Choose how the interface is rendered">
-          <div className="grid grid-cols-3 gap-2">
-            <SheetSelectorButton
-              onClick={() => setTheme('light')} 
-              selected={theme === 'light'}
-              tone="neutral"
-              className="flex flex-col items-center gap-2 py-3"
-            >
-              <Sun size={17} />
-              <span className="text-[11px] font-semibold tracking-[0.02em]">Light</span>
-            </SheetSelectorButton>
-            <SheetSelectorButton
-              onClick={() => setTheme('dark')} 
-              selected={theme === 'dark'}
-              tone="neutral"
-              className="flex flex-col items-center gap-2 py-3"
-            >
-              <Moon size={17} />
-              <span className="text-[11px] font-semibold tracking-[0.02em]">Dark</span>
-            </SheetSelectorButton>
-            <SheetSelectorButton
-              onClick={() => setTheme('system')} 
-              selected={theme === 'system'}
-              tone="neutral"
-              className="flex flex-col items-center gap-2 py-3"
-            >
-              <Monitor size={17} />
-              <span className="text-[11px] font-semibold tracking-[0.02em]">Auto</span>
-            </SheetSelectorButton>
-          </div>
+          <SheetSegmentedSelector
+            value={theme}
+            onChange={(value) => setTheme(value as typeof theme)}
+            options={appearanceOptions}
+            columns={3}
+            tone="neutral"
+            optionClassName="py-2.5"
+          />
         </SheetSection>
 
-        <SheetPrimaryButton onClick={handleSignOut} tone="red" className="inline-flex gap-2">
+        <SheetPrimaryButton
+          onClick={handleSignOut}
+          tone="red"
+          className="inline-flex gap-2 border-[#c66f6f]/40 bg-[#a45757] hover:bg-[#ae6161] shadow-[0_10px_20px_rgba(164,87,87,0.24)]"
+        >
           <LogOut size={16} />
           Secure Sign Out
         </SheetPrimaryButton>

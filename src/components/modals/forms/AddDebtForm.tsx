@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { BottomSheet } from '../../ui/bottom-sheet'
-import { Input } from '../../ui/input'
 import { CreditCard } from 'lucide-react'
 import { useDebts } from '@/hooks/useDebts'
-import { SheetPrimaryButton, SheetSection, sheetInputClassName } from '../sheet-primitives'
+import { SheetPrimaryButton, SheetSection, SheetTextField } from '../sheet-primitives'
 
 export function AddDebtForm({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { addDebt } = useDebts()
@@ -43,48 +42,48 @@ export function AddDebtForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
       headerMeta="Capture liability details and repayment baseline"
       headerIcon={<CreditCard size={16} strokeWidth={2.2} />}
     >
-      <form onSubmit={handleSubmit} className="mt-2 space-y-4 pb-1">
-        <SheetSection label="Credit Details" meta="Name and lender information">
-          <Input 
+      <form onSubmit={handleSubmit} className="mt-1.5 space-y-3.5 pb-1">
+        <SheetSection label="Credit Details" meta="Liability identity and creditor source">
+          <SheetTextField
             placeholder="Name (e.g. Car Loan)" 
             value={name} 
             onChange={e => setName(e.target.value)} 
             required 
             autoFocus
-            className={sheetInputClassName}
+            className="font-medium"
           />
-          <Input 
+          <SheetTextField
             placeholder="Creditor (e.g. Barclays, Klarna)" 
             value={creditor} 
             onChange={e => setCreditor(e.target.value)} 
             required 
-            className={sheetInputClassName}
+            className="font-medium"
           />
         </SheetSection>
 
-        <SheetSection label="Financials" meta="Outstanding balance and APR">
+        <SheetSection label="Financial Snapshot" meta="Outstanding balance and interest baseline">
           <div className="flex gap-3">
-            <Input 
+            <SheetTextField
               type="number" 
               step="0.01" 
               placeholder="Balance (£0.00)" 
               value={balance} 
               onChange={e => setBalance(e.target.value)} 
               required 
-              className={`${sheetInputClassName} font-medium w-2/3`}
+              className="font-medium w-2/3"
             />
-            <Input 
+            <SheetTextField
               type="number" 
               step="0.1" 
               placeholder="APR (%)" 
               value={rate} 
               onChange={e => setRate(e.target.value)} 
-              className={`${sheetInputClassName} font-medium w-1/3`}
+              className="font-medium w-1/3"
             />
           </div>
         </SheetSection>
 
-        <SheetPrimaryButton type="submit" tone="red">
+        <SheetPrimaryButton type="submit" tone="red" className="shadow-[0_12px_22px_rgba(141,72,72,0.28)]">
           Save Liability
         </SheetPrimaryButton>
       </form>

@@ -1,15 +1,27 @@
 import { useState } from 'react'
 import { BottomSheet } from '../../ui/bottom-sheet'
 import { useAccounts } from '@/hooks/useAccounts'
-import { Input } from '../../ui/input'
 import { Wallet } from 'lucide-react'
-import { SheetPrimaryButton, SheetSection, SheetSelectorButton, sheetInputClassName } from '../sheet-primitives'
+import {
+  SheetPrimaryButton,
+  SheetSection,
+  SheetSegmentedSelector,
+  SheetTextField,
+  type SheetSegmentOption,
+} from '../sheet-primitives'
 
 export function AddAccountForm({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { addAccount } = useAccounts()
   const [name, setName] = useState('')
   const [balance, setBalance] = useState('')
   const [type, setType] = useState<'bank'|'cash'|'credit_card'|'savings'>('bank')
+
+  const accountTypeOptions: SheetSegmentOption[] = [
+    { value: 'bank', label: 'Bank' },
+    { value: 'cash', label: 'Cash' },
+    { value: 'credit_card', label: 'Credit Card' },
+    { value: 'savings', label: 'Savings' },
+  ]
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,44 +54,38 @@ export function AddAccountForm({ isOpen, onClose }: { isOpen: boolean, onClose: 
       headerMeta="Create a manual account source for your ledger"
       headerIcon={<Wallet size={16} strokeWidth={2.2} />}
     >
-      <form onSubmit={handleSubmit} className="mt-2 space-y-4 pb-1">
+      <form onSubmit={handleSubmit} className="mt-1.5 space-y-3.5 pb-1">
         <SheetSection label="Details" meta="Identity and opening amount">
-          <Input 
+          <SheetTextField 
             placeholder="Account Name (e.g. Monzo Joint)" 
             value={name} 
             onChange={e => setName(e.target.value)} 
             required 
             autoFocus
-            className={sheetInputClassName}
           />
-          <Input 
+          <SheetTextField
             type="number" 
             step="0.01" 
             placeholder="Starting Balance (£0.00)" 
             value={balance} 
             onChange={e => setBalance(e.target.value)} 
             required 
-            className={`${sheetInputClassName} font-medium`}
+            className="font-medium"
           />
         </SheetSection>
 
         <SheetSection label="Category" meta="How this account behaves in your system">
-          <div className="grid grid-cols-2 gap-2">
-            {(['bank', 'cash', 'credit_card', 'savings'] as const).map(t => (
-              <SheetSelectorButton
-                key={t}
-                selected={type === t}
-                tone="neutral"
-                onClick={() => setType(t)}
-                className="capitalize"
-              >
-                {t.replace('_', ' ')}
-              </SheetSelectorButton>
-            ))}
-          </div>
+          <SheetSegmentedSelector
+            value={type}
+            onChange={(value) => setType(value as typeof type)}
+            options={accountTypeOptions}
+            tone="neutral"
+            columns={2}
+            optionClassName="py-2.5"
+          />
         </SheetSection>
 
-        <SheetPrimaryButton type="submit" tone="neutral">
+        <SheetPrimaryButton type="submit" tone="neutral" className="shadow-[0_12px_22px_rgba(0,0,0,0.2)]">
           Save Account
         </SheetPrimaryButton>
       </form>
