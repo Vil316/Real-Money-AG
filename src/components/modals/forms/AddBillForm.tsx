@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { BottomSheet } from '../../ui/bottom-sheet'
 import { Input } from '../../ui/input'
-import { Label } from '../../ui/label'
-import { Button } from '../../ui/button'
+import { FileText } from 'lucide-react'
 import { useBills } from '@/hooks/useBills'
+import { SheetPrimaryButton, SheetSection, SheetSelectorButton, sheetInputClassName } from '../sheet-primitives'
 
 export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { addBill } = useBills()
@@ -32,17 +32,23 @@ export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
   }
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="Add Recurring Bill">
-      <form onSubmit={handleSubmit} className="space-y-6 mt-4 pb-4">
-        <div className="space-y-3">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Details</Label>
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add Recurring Bill"
+      contextLabel="Recurring Setup"
+      headerMeta="Track fixed commitments with a clean billing cadence"
+      headerIcon={<FileText size={16} strokeWidth={2.2} />}
+    >
+      <form onSubmit={handleSubmit} className="mt-2 space-y-4 pb-1">
+        <SheetSection label="Details" meta="Bill identity and cost">
           <Input 
             placeholder="Bill Name (e.g. Netflix, Water)" 
             value={name} 
             onChange={e => setName(e.target.value)} 
             required 
             autoFocus
-            className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent"
+            className={sheetInputClassName}
           />
           <Input 
             type="number" 
@@ -51,42 +57,39 @@ export function AddBillForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
             value={amount} 
             onChange={e => setAmount(e.target.value)} 
             required 
-            className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent font-medium"
+            className={`${sheetInputClassName} font-medium`}
           />
-        </div>
+        </SheetSection>
 
-        <div className="space-y-3 pt-2">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Frequency</Label>
+        <SheetSection label="Frequency" meta="How often this bill returns">
           <div className="grid grid-cols-3 gap-2">
             {(['weekly', 'monthly', 'annual'] as const).map(t => (
-               <button 
-                  type="button" 
-                  key={t} 
-                  onClick={() => setFrequency(t)} 
-                  className={`py-3.5 rounded-2xl transition-all border text-[13px] font-bold capitalize tracking-wide ${frequency === t ? 'bg-foreground text-background border-foreground shadow-md' : 'bg-transparent border-border text-foreground/60 hover:bg-foreground/5'}`}
-                >
-                 {t}
-               </button>
+              <SheetSelectorButton
+                key={t}
+                selected={frequency === t}
+                tone="purple"
+                onClick={() => setFrequency(t)}
+                className="capitalize"
+              >
+                {t}
+              </SheetSelectorButton>
             ))}
           </div>
-        </div>
+        </SheetSection>
 
-        <div className="space-y-3 pt-2">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Next Due Date</Label>
+        <SheetSection label="Next Due Date" meta="First scheduled payment date">
           <Input 
             type="date"
             value={nextDate} 
             onChange={e => setNextDate(e.target.value)} 
             required 
-            className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent w-full"
+            className={`${sheetInputClassName} w-full`}
           />
-        </div>
+        </SheetSection>
 
-        <div className="pt-6">
-          <Button type="submit" className="w-full h-14 rounded-2xl font-bold text-[15px] shadow-sm active:scale-95 transition-transform bg-purple-600 hover:bg-purple-700 text-white">
-            Save Bill
-          </Button>
-        </div>
+        <SheetPrimaryButton type="submit" tone="purple">
+          Save Bill
+        </SheetPrimaryButton>
       </form>
     </BottomSheet>
   )

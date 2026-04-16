@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { BottomSheet } from '../../ui/bottom-sheet'
 import { Input } from '../../ui/input'
-import { Label } from '../../ui/label'
-import { Button } from '../../ui/button'
+import { Target } from 'lucide-react'
 import { useSavings } from '@/hooks/useSavings'
+import { SheetPrimaryButton, SheetSection, sheetInputClassName } from '../sheet-primitives'
 
 export function AddGoalForm({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { addGoal } = useSavings()
@@ -30,25 +30,30 @@ export function AddGoalForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
   }
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="Create Savings Goal">
-      <form onSubmit={handleSubmit} className="space-y-6 mt-4 pb-4">
-        <div className="space-y-3">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Goal Details</Label>
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Create Savings Goal"
+      contextLabel="Savings Setup"
+      headerMeta="Define a target and track progress in your OS"
+      headerIcon={<Target size={16} strokeWidth={2.2} />}
+    >
+      <form onSubmit={handleSubmit} className="mt-2 space-y-4 pb-1">
+        <SheetSection label="Goal Details" meta="Name and structure of this savings target">
           <Input 
             placeholder="Name (e.g. Vacation, Emergency Fund)" 
             value={name} 
             onChange={e => setName(e.target.value)} 
             required 
             autoFocus
-            className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent"
+            className={sheetInputClassName}
           />
-        </div>
+        </SheetSection>
 
-        <div className="space-y-3 pt-2">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Financials</Label>
+        <SheetSection label="Financials" meta="Current baseline and target amount">
           <div className="flex gap-3">
              <div className="space-y-1 w-1/2">
-               <Label className="text-[10px] uppercase text-foreground/40">Target (£)</Label>
+               <p className="text-[10px] uppercase tracking-[0.12em] text-white/45">Target (GBP)</p>
                <Input 
                  type="number" 
                  step="0.01" 
@@ -56,28 +61,26 @@ export function AddGoalForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
                  value={target} 
                  onChange={e => setTarget(e.target.value)} 
                  required 
-                 className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent font-medium"
+                 className={`${sheetInputClassName} font-medium`}
                />
              </div>
              <div className="space-y-1 w-1/2">
-               <Label className="text-[10px] uppercase text-foreground/40">Already Saved (£)</Label>
+               <p className="text-[10px] uppercase tracking-[0.12em] text-white/45">Already Saved (GBP)</p>
                <Input 
                  type="number" 
                  step="0.01" 
                  placeholder="0.00" 
                  value={current} 
                  onChange={e => setCurrent(e.target.value)} 
-                 className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent font-medium"
+                 className={`${sheetInputClassName} font-medium`}
                />
              </div>
           </div>
-        </div>
+        </SheetSection>
 
-        <div className="pt-6">
-          <Button type="submit" className="w-full h-14 rounded-2xl font-bold text-[15px] shadow-sm active:scale-95 transition-transform bg-emerald-600 hover:bg-emerald-700 text-white">
-            Pledge Goal
-          </Button>
-        </div>
+        <SheetPrimaryButton type="submit" tone="green">
+          Pledge Goal
+        </SheetPrimaryButton>
       </form>
     </BottomSheet>
   )

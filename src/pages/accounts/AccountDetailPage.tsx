@@ -1,11 +1,26 @@
-import { useParams, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useTransactions } from '@/hooks/useTransactions'
 import { formatCurrency } from '@/lib/utils'
-import { ArrowLeft, Plus, Send, MoreHorizontal, Store, RefreshCw } from 'lucide-react'
+import { ArrowRightLeft, Bell, Plus, RefreshCw, Store, Wallet } from 'lucide-react'
 import { format } from 'date-fns'
 import { AddTransactionForm } from '@/components/modals/forms/AddTransactionForm'
+import {
+  EmptyStateCard,
+  FloatingTopControls,
+  MetadataChip,
+  PageShell,
+  PremiumListRow,
+  SectionCard,
+  SectionHeader,
+  SummaryCard,
+} from '@/components/design'
+
+function buildAccountSubtitle(type: string, isLinked: boolean | undefined) {
+  const typeLabel = type === 'credit_card' ? 'Credit Card' : type.replace('_', ' ')
+  return `${typeLabel} · ${isLinked ? 'Connected' : 'Manual'}`
+}
 
 export function AccountDetailPage() {
   const { id } = useParams()
@@ -20,104 +35,146 @@ export function AccountDetailPage() {
   const account = accounts.find(a => a.id === id)
 
   if (accLoad || accounts.length === 0) {
-    // If accounts is totally empty, we might just be initializing. Wait.
-    // If it never resolves, we might need a timeout, but this prevents the instant crash.
-    return <div className="p-8 text-foreground text-center animate-pulse">Loading account data...</div>
+    return (
+      <PageShell topSlot={<FloatingTopControls />}>
+        <SectionCard>
+          <p className="py-8 text-center text-sm font-medium text-white/60">Loading account data...</p>
+        </SectionCard>
+      </PageShell>
+    )
   }
 
-  if (!account) return <div className="p-8 text-foreground text-center">Account not found or access denied</div>
+  if (!account) {
+    return (
+      <PageShell topSlot={<FloatingTopControls />}>
+        <EmptyStateCard
+          title="Account not found"
+          description="This account may have been archived or you no longer have access."
+          actionLabel="Back to accounts"
+          onAction={() => navigate('/accounts')}
+        />
+      </PageShell>
+    )
+  }
+
+  const recentInflows = transactions.filter(transaction => Number(transaction.amount) > 0).slice(0, 5)
+  const recentOutflows = transactions.filter(transaction => Number(transaction.amount) < 0).slice(0, 5)
+  const accountTail = account.id.slice(-4).padStart(4, '0')
+  const netMonthFlow = transactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0)
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-50 nav-glass px-4 py-3 flex items-center justify-between h-14">
-        <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-foreground/5 text-foreground active:scale-95 transition-transform -ml-2">
-          <ArrowLeft size={22} strokeWidth={2.5} />
-        </button>
-        <span className="font-semibold text-foreground text-base">{account.name}</span>
-        <div className="w-10" />
-      </div>
+    <PageShell topSlot={<FloatingTopControls hasLivePulse={transactions.length > 0} />}>
+      <SummaryCard
+        eyebrow="Account Details"
+        eyebrowIcon={<Wallet size={12} strokeWidth={2.2} />}
+        status={account.is_linked ? 'Connected' : 'Manual'}
+        value={formatCurrency(account.balance, account.currency)}
+        metrics={[
+          { label: 'Account type', value: buildAccountSubtitle(account.type, account.is_linked) },
+          { label: 'Card / ledger tail', value: `•••• ${accountTail}` },
+          { label: 'Net flow (visible)', value: formatCurrency(netMonthFlow, account.currency) },
+        ]}
+        footer={`${account.name} is actively tracked in your command ledger`}
+      />
 
-      {/* Hero Card */}
-      <div className="px-5 py-6 flex justify-center">
-        <div 
-          className="w-full max-w-[320px] aspect-[1.586/1] rounded-[20px] p-6 flex flex-col justify-between shadow-2xl relative overflow-hidden"
-          style={{ backgroundColor: account.colour || '#10b981' }}
-        >
-          <div className="absolute top-0 right-0 w-48 h-48 bg-white/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
-          
-          <div className="relative z-10 flex justify-between items-start">
-             <span className="text-white/90 font-semibold tracking-wider text-sm">RealMoney</span>
-             <div className="w-10 h-10 rounded-full bg-black/10 flex items-center justify-center text-xl shadow-inner border border-white/20">
-              {account.type === 'bank' ? '🏦' : account.type === 'credit_card' ? '💳' : account.type === 'savings' ? '💰' : '📋'}
-             </div>
-          </div>
+      <SectionCard>
+        <SectionHeader
+          title={account.name}
+          subtitle="Action cluster"
+          right={<MetadataChip label={buildAccountSubtitle(account.type, account.is_linked)} tone="neutral" />}
+        />
 
-          <div className="relative z-10">
-            <p className="text-white/80 text-xs font-semibold uppercase tracking-widest mb-1.5 opacity-90">Balance</p>
-            <p className="text-3xl font-display font-semibold -tracking-[1px] text-white">
-              {formatCurrency(account.balance, account.currency)}
-            </p>
-            {(account.type === 'bank' || account.type === 'credit_card') && (
-              <p className="text-white/60 text-[12px] font-mono tracking-widest mt-3">•••• •••• •••• {account.id.substring(account.id.length - 4).padStart(4, '0')}</p>
-            )}
-          </div>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => setIsAddOpen(true)}
+            className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-2 py-3 text-center text-[12px] font-semibold text-white/92 transition-colors hover:bg-white/[0.06]"
+          >
+            <span className="mx-auto mb-1 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.05]">
+              <Plus size={14} />
+            </span>
+            Add Log
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/transfer?from=${account.id}`)}
+            className="rounded-2xl border border-[#0B8289]/24 bg-[#0B8289]/10 px-2 py-3 text-center text-[12px] font-semibold text-[#a2e5ea] transition-colors hover:bg-[#0B8289]/15"
+          >
+            <span className="mx-auto mb-1 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#0B8289]/26 bg-[#0B8289]/14">
+              <ArrowRightLeft size={14} />
+            </span>
+            Transfer
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/notifications')}
+            className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-2 py-3 text-center text-[12px] font-semibold text-white/92 transition-colors hover:bg-white/[0.06]"
+          >
+            <span className="mx-auto mb-1 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.05]">
+              <Bell size={14} />
+            </span>
+            Alerts
+          </button>
         </div>
-      </div>
+      </SectionCard>
 
-      {/* Actions */}
-      <div className="flex justify-center gap-7 px-5 mb-8">
-        <button onClick={() => setIsAddOpen(true)} className="flex flex-col items-center gap-2 group">
-          <div className="w-14 h-14 rounded-full bg-card border border-border flex items-center justify-center shadow-sm text-foreground group-active:scale-95 transition-transform"><Plus size={24} strokeWidth={2}/></div>
-          <span className="text-[11px] font-semibold text-foreground/70">Add Log</span>
-        </button>
-        <button className="flex flex-col items-center gap-2 group">
-          <div className="w-14 h-14 rounded-full bg-card border border-border flex items-center justify-center shadow-sm text-foreground group-active:scale-95 transition-transform"><Send size={22} strokeWidth={2}/></div>
-          <span className="text-[11px] font-semibold text-foreground/70">Transfer</span>
-        </button>
-        <button className="flex flex-col items-center gap-2 group">
-          <div className="w-14 h-14 rounded-full bg-card border border-border flex items-center justify-center shadow-sm text-foreground group-active:scale-95 transition-transform"><MoreHorizontal size={24} strokeWidth={2}/></div>
-          <span className="text-[11px] font-semibold text-foreground/70">Manage</span>
-        </button>
-      </div>
+      <SectionCard>
+        <SectionHeader
+          title="Ledger History"
+          subtitle={txLoad ? 'Syncing transactions...' : `${transactions.length} entries available`}
+          right={<MetadataChip label={txLoad ? 'Syncing' : 'Live'} tone={txLoad ? 'attention' : 'teal'} />}
+        />
 
-      {/* Transactions Feed */}
-      <div className="px-3 pb-32">
-        <h3 className="text-lg text-foreground font-semibold mb-3 px-2">History</h3>
-        
         {txLoad ? (
-          <div className="text-center py-8">
-            <RefreshCw className="animate-spin text-foreground/20 mx-auto" size={24} />
+          <div className="py-8 text-center">
+            <RefreshCw className="mx-auto animate-spin text-white/35" size={22} />
           </div>
         ) : transactions.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-foreground/40 text-sm font-medium">No transactions logged yet.</p>
-          </div>
+          <EmptyStateCard
+            title="No transactions yet"
+            description="Start logging transactions to build a complete account history."
+            actionLabel="Log transaction"
+            onAction={() => setIsAddOpen(true)}
+            className="border-white/[0.08]"
+          />
         ) : (
-          <div className="bg-card rounded-3xl border border-border overflow-hidden shadow-sm">
-            {transactions.map((t, idx) => (
-              <div key={t.id} className={`p-4 flex items-center justify-between hover:bg-foreground/5 cursor-pointer transition-colors active:bg-foreground/10 ${idx !== transactions.length - 1 ? 'border-b border-border' : ''}`}>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-foreground/5 border border-border flex items-center justify-center text-foreground shrink-0">
-                    <Store size={18} />
-                  </div>
-                  <div>
-                    <h4 className="text-foreground font-medium text-[15px]">{t.merchant_clean || t.merchant_raw}</h4>
-                    <p className="text-foreground/50 text-[12px] font-medium mt-0.5">{format(new Date(t.date), 'dd MMM yyyy')} {t.is_pending ? '· Pending' : ''}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`font-semibold text-[16px] -tracking-[0.4px] ${t.amount > 0 ? 'text-[#30D158]' : 'text-foreground'}`}>
-                    {t.amount > 0 ? '+' : ''}{formatCurrency(t.amount, account.currency)}
-                  </p>
-                </div>
-              </div>
-            ))}
+          <div className="divide-y divide-white/[0.055]">
+            {transactions.map((transaction) => {
+              const amount = Number(transaction.amount)
+              const title = transaction.merchant_clean || transaction.merchant_raw
+              return (
+                <PremiumListRow
+                  key={transaction.id}
+                  title={title}
+                  subtitle={`${format(new Date(transaction.date), 'dd MMM yyyy')}${transaction.is_pending ? ' · Pending' : ''}`}
+                  amount={`${amount > 0 ? '+' : ''}${formatCurrency(amount, account.currency)}`}
+                  tone={amount > 0 ? 'income' : 'expense'}
+                  leading={<Store size={15} className="text-white/65" />}
+                />
+              )
+            })}
           </div>
         )}
-      </div>
+      </SectionCard>
 
+      <SectionCard>
+        <SectionHeader title="Flow Split" subtitle="Recent cash direction snapshots" />
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl border border-[#74d4a3]/24 bg-[#74d4a3]/10 px-3 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#95dfba]">Inflows</p>
+            <p className="mt-1 text-[20px] font-semibold text-white">{recentInflows.length}</p>
+          </div>
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Outflows</p>
+            <p className="mt-1 text-[20px] font-semibold text-white">{recentOutflows.length}</p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <div className="h-6" />
       <AddTransactionForm isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} accountId={account.id} />
-    </div>
+    </PageShell>
   )
 }

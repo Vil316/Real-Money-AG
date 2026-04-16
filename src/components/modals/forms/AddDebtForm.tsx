@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { BottomSheet } from '../../ui/bottom-sheet'
 import { Input } from '../../ui/input'
-import { Label } from '../../ui/label'
-import { Button } from '../../ui/button'
+import { CreditCard } from 'lucide-react'
 import { useDebts } from '@/hooks/useDebts'
+import { SheetPrimaryButton, SheetSection, sheetInputClassName } from '../sheet-primitives'
 
 export function AddDebtForm({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { addDebt } = useDebts()
@@ -35,29 +35,34 @@ export function AddDebtForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
   }
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="Log Liability / Debt">
-      <form onSubmit={handleSubmit} className="space-y-6 mt-4 pb-4">
-        <div className="space-y-3">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Credit Details</Label>
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Log Liability / Debt"
+      contextLabel="Debt Setup"
+      headerMeta="Capture liability details and repayment baseline"
+      headerIcon={<CreditCard size={16} strokeWidth={2.2} />}
+    >
+      <form onSubmit={handleSubmit} className="mt-2 space-y-4 pb-1">
+        <SheetSection label="Credit Details" meta="Name and lender information">
           <Input 
             placeholder="Name (e.g. Car Loan)" 
             value={name} 
             onChange={e => setName(e.target.value)} 
             required 
             autoFocus
-            className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent"
+            className={sheetInputClassName}
           />
           <Input 
             placeholder="Creditor (e.g. Barclays, Klarna)" 
             value={creditor} 
             onChange={e => setCreditor(e.target.value)} 
             required 
-            className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent"
+            className={sheetInputClassName}
           />
-        </div>
+        </SheetSection>
 
-        <div className="space-y-3 pt-2">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Financials</Label>
+        <SheetSection label="Financials" meta="Outstanding balance and APR">
           <div className="flex gap-3">
             <Input 
               type="number" 
@@ -66,7 +71,7 @@ export function AddDebtForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
               value={balance} 
               onChange={e => setBalance(e.target.value)} 
               required 
-              className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent font-medium w-2/3"
+              className={`${sheetInputClassName} font-medium w-2/3`}
             />
             <Input 
               type="number" 
@@ -74,16 +79,14 @@ export function AddDebtForm({ isOpen, onClose }: { isOpen: boolean, onClose: () 
               placeholder="APR (%)" 
               value={rate} 
               onChange={e => setRate(e.target.value)} 
-              className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent font-medium w-1/3"
+              className={`${sheetInputClassName} font-medium w-1/3`}
             />
           </div>
-        </div>
+        </SheetSection>
 
-        <div className="pt-6">
-          <Button type="submit" className="w-full h-14 rounded-2xl font-bold text-[15px] shadow-sm active:scale-95 transition-transform bg-rose-600 hover:bg-rose-700 text-white">
-            Save Liability
-          </Button>
-        </div>
+        <SheetPrimaryButton type="submit" tone="red">
+          Save Liability
+        </SheetPrimaryButton>
       </form>
     </BottomSheet>
   )

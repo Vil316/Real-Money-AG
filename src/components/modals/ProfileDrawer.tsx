@@ -2,8 +2,8 @@ import { BottomSheet } from '../ui/bottom-sheet'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { useTheme } from '../theme-provider'
-import { LogOut, Moon, Sun, Monitor } from 'lucide-react'
-import { Button } from '../ui/button'
+import { LogOut, Moon, Sun, Monitor, Settings2 } from 'lucide-react'
+import { SheetPrimaryButton, SheetSection, SheetSelectorButton } from './sheet-primitives'
 
 export function ProfileDrawer({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { user } = useAuth()
@@ -16,47 +16,63 @@ export function ProfileDrawer({ isOpen, onClose }: { isOpen: boolean, onClose: (
   }
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="Profile & Settings">
-      <div className="space-y-6 mt-4">
-        <div className="bg-foreground/5 p-4 rounded-3xl flex items-center gap-4 border border-border">
-          <div className="w-14 h-14 bg-foreground rounded-full flex items-center justify-center text-background">
-            <span className="text-xl font-bold">{user?.email?.charAt(0).toUpperCase() || 'U'}</span>
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Profile & Settings"
+      contextLabel="System Profile"
+      headerMeta={user?.email || 'Authenticated user'}
+      headerIcon={<Settings2 size={16} strokeWidth={2.2} />}
+    >
+      <div className="mt-2 space-y-4 pb-1">
+        <SheetSection label="Identity" meta="Authenticated session details">
+          <div className="flex items-center gap-4 rounded-[20px] border border-white/[0.1] bg-white/[0.03] p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.1] bg-white text-[#0b1114]">
+              <span className="text-[17px] font-semibold">{user?.email?.charAt(0).toUpperCase() || 'U'}</span>
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[14px] font-semibold tracking-[0.01em] text-white">{user?.email || 'Authenticated User'}</p>
+              <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.11em] text-white/46">ID {user?.id.substring(0, 8)}...</p>
+            </div>
           </div>
-          <div>
-            <p className="font-semibold text-foreground tracking-tight">{user?.email || 'Authenticated User'}</p>
-            <p className="text-xs text-foreground/50 tracking-wider font-mono mt-0.5">ID: {user?.id.substring(0, 8)}...</p>
-          </div>
-        </div>
+        </SheetSection>
 
-        <div>
-          <h4 className="text-xs font-semibold text-foreground/50 uppercase tracking-widest mb-3 px-1">Appearance</h4>
-          <div className="grid grid-cols-3 gap-3">
-            <button 
+        <SheetSection label="Appearance" meta="Choose how the interface is rendered">
+          <div className="grid grid-cols-3 gap-2">
+            <SheetSelectorButton
               onClick={() => setTheme('light')} 
-              className={`p-4 rounded-2xl flex flex-col items-center gap-3 transition-colors ${theme === 'light' ? 'bg-foreground border border-foreground text-background shadow-md' : 'bg-foreground/5 border border-transparent text-foreground hover:bg-foreground/10'}`}
+              selected={theme === 'light'}
+              tone="neutral"
+              className="flex flex-col items-center gap-2 py-3"
             >
-              <Sun size={20} /> <span className="text-xs font-bold tracking-wide">Light</span>
-            </button>
-            <button 
+              <Sun size={17} />
+              <span className="text-[11px] font-semibold tracking-[0.02em]">Light</span>
+            </SheetSelectorButton>
+            <SheetSelectorButton
               onClick={() => setTheme('dark')} 
-              className={`p-4 rounded-2xl flex flex-col items-center gap-3 transition-colors ${theme === 'dark' ? 'bg-foreground border border-foreground text-background shadow-md' : 'bg-foreground/5 border border-transparent text-foreground hover:bg-foreground/10'}`}
+              selected={theme === 'dark'}
+              tone="neutral"
+              className="flex flex-col items-center gap-2 py-3"
             >
-              <Moon size={20} /> <span className="text-xs font-bold tracking-wide">Dark</span>
-            </button>
-            <button 
+              <Moon size={17} />
+              <span className="text-[11px] font-semibold tracking-[0.02em]">Dark</span>
+            </SheetSelectorButton>
+            <SheetSelectorButton
               onClick={() => setTheme('system')} 
-              className={`p-4 rounded-2xl flex flex-col items-center gap-3 transition-colors ${theme === 'system' ? 'bg-foreground border border-foreground text-background shadow-md' : 'bg-foreground/5 border border-transparent text-foreground hover:bg-foreground/10'}`}
+              selected={theme === 'system'}
+              tone="neutral"
+              className="flex flex-col items-center gap-2 py-3"
             >
-              <Monitor size={20} /> <span className="text-xs font-bold tracking-wide">Auto</span>
-            </button>
+              <Monitor size={17} />
+              <span className="text-[11px] font-semibold tracking-[0.02em]">Auto</span>
+            </SheetSelectorButton>
           </div>
-        </div>
+        </SheetSection>
 
-        <div className="pt-4 border-t border-border">
-          <Button onClick={handleSignOut} variant="destructive" className="w-full flex gap-2 h-14 rounded-2xl font-bold shadow-sm">
-            <LogOut size={18} /> Secure Sign Out
-          </Button>
-        </div>
+        <SheetPrimaryButton onClick={handleSignOut} tone="red" className="inline-flex gap-2">
+          <LogOut size={16} />
+          Secure Sign Out
+        </SheetPrimaryButton>
       </div>
     </BottomSheet>
   )

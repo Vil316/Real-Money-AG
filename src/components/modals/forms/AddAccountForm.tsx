@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { BottomSheet } from '../../ui/bottom-sheet'
 import { useAccounts } from '@/hooks/useAccounts'
 import { Input } from '../../ui/input'
-import { Label } from '../../ui/label'
-import { Button } from '../../ui/button'
+import { Wallet } from 'lucide-react'
+import { SheetPrimaryButton, SheetSection, SheetSelectorButton, sheetInputClassName } from '../sheet-primitives'
 
 export function AddAccountForm({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const { addAccount } = useAccounts()
@@ -34,18 +34,23 @@ export function AddAccountForm({ isOpen, onClose }: { isOpen: boolean, onClose: 
   }
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="Add Manual Account">
-      <form onSubmit={handleSubmit} className="space-y-6 mt-4 pb-4">
-        
-        <div className="space-y-3">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Details</Label>
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add Manual Account"
+      contextLabel="Account Setup"
+      headerMeta="Create a manual account source for your ledger"
+      headerIcon={<Wallet size={16} strokeWidth={2.2} />}
+    >
+      <form onSubmit={handleSubmit} className="mt-2 space-y-4 pb-1">
+        <SheetSection label="Details" meta="Identity and opening amount">
           <Input 
             placeholder="Account Name (e.g. Monzo Joint)" 
             value={name} 
             onChange={e => setName(e.target.value)} 
             required 
             autoFocus
-            className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent"
+            className={sheetInputClassName}
           />
           <Input 
             type="number" 
@@ -54,31 +59,29 @@ export function AddAccountForm({ isOpen, onClose }: { isOpen: boolean, onClose: 
             value={balance} 
             onChange={e => setBalance(e.target.value)} 
             required 
-            className="h-14 rounded-2xl bg-foreground/5 border-transparent focus-visible:ring-1 focus-visible:bg-transparent font-medium"
+            className={`${sheetInputClassName} font-medium`}
           />
-        </div>
+        </SheetSection>
 
-        <div className="space-y-3 pt-2">
-          <Label className="text-xs uppercase tracking-widest text-foreground/50">Category</Label>
+        <SheetSection label="Category" meta="How this account behaves in your system">
           <div className="grid grid-cols-2 gap-2">
             {(['bank', 'cash', 'credit_card', 'savings'] as const).map(t => (
-               <button 
-                  type="button" 
-                  key={t} 
-                  onClick={() => setType(t)} 
-                  className={`py-3.5 rounded-2xl transition-all border text-[13px] font-bold capitalize tracking-wide ${type === t ? 'bg-foreground text-background border-foreground shadow-md' : 'bg-transparent border-border text-foreground/60 hover:bg-foreground/5'}`}
-                >
-                 {t.replace('_', ' ')}
-               </button>
+              <SheetSelectorButton
+                key={t}
+                selected={type === t}
+                tone="neutral"
+                onClick={() => setType(t)}
+                className="capitalize"
+              >
+                {t.replace('_', ' ')}
+              </SheetSelectorButton>
             ))}
           </div>
-        </div>
+        </SheetSection>
 
-        <div className="pt-6">
-          <Button type="submit" className="w-full h-14 rounded-2xl font-bold text-[15px] shadow-sm active:scale-95 transition-transform">
-            Save Account
-          </Button>
-        </div>
+        <SheetPrimaryButton type="submit" tone="neutral">
+          Save Account
+        </SheetPrimaryButton>
       </form>
     </BottomSheet>
   )

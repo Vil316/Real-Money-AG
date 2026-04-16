@@ -1,260 +1,370 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { format } from 'date-fns'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowDownToLine, CalendarCheck2, CheckCircle2, Plus, Repeat, Wallet } from 'lucide-react'
 import { useBills } from '@/hooks/useBills'
 import { useSubscriptions } from '@/hooks/useSubscriptions'
 import { useIncome } from '@/hooks/useIncome'
-import { formatCurrency, advanceDueDate, daysUntil, dueDateLabel, totalBillsThisMonth, totalActiveSubscriptions, totalCancelledSavings } from '@/lib/utils'
-import { Plus } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { format } from 'date-fns'
+import {
+  advanceDueDate,
+  dueDateLabel,
+  formatCurrency,
+  totalActiveSubscriptions,
+  totalBillsThisMonth,
+  totalCancelledSavings,
+} from '@/lib/utils'
+import {
+  EmptyStateCard,
+  FloatingTopControls,
+  MetadataChip,
+  PageShell,
+  PremiumListRow,
+  SectionCard,
+  SectionHeader,
+  SummaryCard,
+  fadeUp,
+} from '@/components/design'
+import { AddBillForm } from '@/components/modals/forms/AddBillForm'
 
-function BillsTab() {
-  const { bills, isLoading, markPaid } = useBills()
-  if (isLoading) return <div className="text-foreground/50 text-center py-4 font-medium text-sm">Syncing...</div>
+type MoneyTab = 'bills' | 'subs' | 'income'
 
-  const total = totalBillsThisMonth(bills)
-  
+function TabButton({
+  label,
+  isActive,
+  onClick,
+}: {
+  label: string
+  isActive: boolean
+  onClick: () => void
+}) {
   return (
-    <div className="space-y-4">
-      <div className="bg-card rounded-[20px] p-5 text-center border border-border shadow-sm">
-        <p className="text-foreground/50 text-[11px] uppercase tracking-widest font-bold mb-1">Monthly Total</p>
-        <p className="text-4xl font-display font-semibold -tracking-[1px] text-foreground">{formatCurrency(total)}</p>
-      </div>
-
-      <div className="bg-card rounded-[20px] border border-border overflow-hidden shadow-sm">
-        <AnimatePresence>
-          {bills.map((bill, i) => {
-            const dueDays = daysUntil(bill.next_due_date)
-            const isDueSoon = dueDays >= 0 && dueDays <= 3 && !bill.is_paid_this_cycle
-            const isLate = dueDays < 0 && !bill.is_paid_this_cycle
-
-            return (
-              <motion.div key={bill.id} layout exit={{ opacity: 0, scale: 0.9 }}>
-                <div className={`p-4 flex items-center justify-between ${bill.is_paid_this_cycle ? 'opacity-40' : ''} ${i !== bills.length - 1 ? 'border-b border-border' : ''}`}>
-                  <div>
-                    <h4 className="text-foreground font-semibold text-[15px]">{bill.name}</h4>
-                    <div className="flex gap-2 items-center mt-1">
-                      <span className="text-[9px] bg-foreground/5 border border-border/50 text-foreground/60 font-bold px-2 py-0.5 rounded-sm uppercase tracking-widest">{bill.frequency}</span>
-                      <span className={`text-[12px] font-medium ${isLate ? 'text-[#FF453A]' : isDueSoon ? 'text-[#FF9F0A]' : 'text-foreground/40'}`}>
-                        {dueDateLabel(bill.next_due_date)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right flex flex-col items-end">
-                    <p className="font-semibold text-lg -tracking-[0.3px]">{formatCurrency(bill.amount)}</p>
-                    {!bill.is_paid_this_cycle && (
-                      <button 
-                        onClick={() => markPaid.mutate({ id: bill.id, nextDueDate: advanceDueDate(bill.next_due_date, bill.frequency) })}
-                        className="bg-foreground/5 border border-border hover:bg-foreground/10 text-foreground px-3 py-1.5 rounded-md text-[11px] font-bold tracking-wide mt-2 transition-colors"
-                      >
-                        Mark Paid
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            )
-          })}
-        </AnimatePresence>
-      </div>
-      
-      <button className="w-full py-4 bg-foreground/5 border border-dashed border-border/50 rounded-xl text-foreground/60 font-bold hover:bg-foreground/10 transition-colors flex items-center justify-center gap-2">
-        <Plus size={18} strokeWidth={2.5}/> Add Bill
-      </button>
-    </div>
-  )
-}
-
-function SubscriptionsTab() {
-  const { subscriptions, isLoading } = useSubscriptions()
-  if (isLoading) return <div className="text-foreground/50 text-center py-4 font-medium text-sm">Syncing...</div>
-
-  const active = subscriptions.filter(s => s.status === 'active')
-  const cancelled = subscriptions.filter(s => s.status === 'cancelled')
-  const totalActive = totalActiveSubscriptions(subscriptions)
-  const totalSaved = totalCancelledSavings(subscriptions)
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-card rounded-[20px] p-5 text-center border border-border shadow-sm">
-        <p className="text-foreground/50 text-[11px] uppercase tracking-widest font-bold mb-1">Monthly Active</p>
-        <p className="text-4xl font-display font-semibold -tracking-[1px] text-foreground">{formatCurrency(totalActive)}</p>
-      </div>
-
-      {totalSaved > 0 && (
-        <div className="bg-[#30D158]/10 border border-[#30D158]/20 rounded-2xl p-4 text-center">
-          <p className="text-[13px] text-[#30D158] font-semibold tracking-wide">You've freed up {formatCurrency(totalSaved)}/month</p>
-        </div>
-      )}
-
-      <div className="bg-card rounded-[20px] border border-border overflow-hidden shadow-sm">
-        {active.map((sub, i) => (
-          <div key={sub.id} className={`p-4 flex items-center justify-between ${i !== active.length - 1 ? 'border-b border-border' : ''}`}>
-            <div>
-              <h4 className="text-foreground font-semibold text-[15px]">{sub.name}</h4>
-              <p className="text-foreground/40 text-[12px] font-medium mt-1 capitalize">{sub.category} • {dueDateLabel(sub.next_billing_date)}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-semibold text-lg -tracking-[0.3px]">{formatCurrency(sub.amount)}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      {cancelled.length > 0 && (
-        <div className="mt-6 mb-2">
-          <h4 className="text-foreground/40 text-[11px] font-bold uppercase tracking-widest pl-2 mb-3">Cancelled</h4>
-          <div className="space-y-2">
-            {cancelled.map(sub => (
-              <div key={sub.id} className="p-3 flex justify-between opacity-60 bg-card rounded-[14px] border border-border">
-                <span className="text-foreground font-medium line-through">{sub.name}</span>
-                <span className="text-foreground/60 font-semibold">{formatCurrency(sub.amount)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <button className="w-full py-4 border border-dashed border-foreground/20 rounded-2xl text-foreground/50 font-semibold hover:bg-foreground/5 transition-colors flex items-center justify-center gap-2 mt-4">
-        <Plus size={18} strokeWidth={2.5}/> Add Subscription
-      </button>
-    </div>
-  )
-}
-
-function IncomeTab() {
-  const { incomeEntries, isLoading, logIncome } = useIncome()
-  if (isLoading) return <div className="text-foreground/50 text-center py-4 font-medium text-sm">Syncing...</div>
-
-  // Mock past 4 weeks logic for the CSS velocity chart
-  const weeklyTotals = [400, 380, 420, 400]
-  const maxVal = Math.max(...weeklyTotals)
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-card rounded-[20px] p-5 pt-6 border border-border shadow-sm flex flex-col items-center">
-        <p className="text-foreground/50 text-[11px] uppercase tracking-widest font-bold mb-1">Expected Weekly</p>
-        <p className="text-4xl font-display font-semibold -tracking-[1px] text-foreground">£400.00</p>
-        
-        {/* CSS Velocity Chart */}
-        <div className="w-full mt-8 flex items-end justify-between h-32 px-2 gap-3">
-          {weeklyTotals.map((val, i) => {
-            const heightPct = (val / maxVal) * 100
-            return (
-              <div key={i} className="flex flex-col items-center flex-1 gap-2 border-b-2 border-border h-full relative">
-                <div className="absolute -top-6 text-foreground/40 text-[10px] font-bold">£{val}</div>
-                <div className="w-full relative flex items-end overflow-hidden h-full">
-                  <motion.div 
-                    initial={{ height: 0 }}
-                    animate={{ height: `${heightPct}%` }}
-                    transition={{ type: 'spring', damping: 20 }}
-                    className="w-full bg-foreground rounded-t-sm"
-                  />
-                </div>
-                <div className="absolute -bottom-6 text-foreground/40 text-[10px] font-bold">W{i+1}</div>
-              </div>
-            )
-          })}
-        </div>
-        <div className="h-6" /> {/* Spacer for bottom labels */}
-      </div>
-
-      <div>
-        <h4 className="text-foreground/40 text-[11px] font-bold uppercase tracking-widest pl-2 mb-3 mt-6">Recent Pay Logs</h4>
-        <div className="bg-card rounded-[20px] border border-border overflow-hidden shadow-sm">
-          {incomeEntries.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-foreground/50 text-sm font-medium">No income logged.</p>
-            </div>
-          ) : (
-            incomeEntries.map((inc, i) => (
-              <div key={inc.id} className={`p-4 flex items-center justify-between hover:bg-foreground/5 ${i !== incomeEntries.length - 1 ? 'border-b border-border' : ''}`}>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-[#30D158]/10 text-[#30D158] flex flex-col items-center justify-center font-bold text-lg shrink-0">
-                    ↓
-                  </div>
-                  <div>
-                    <h4 className="text-foreground font-semibold text-[15px] capitalize">{inc.payment_method.replace('_', ' ')}</h4>
-                    <p className="text-foreground/40 text-[12px] font-medium mt-0.5">{format(new Date(inc.date), 'dd MMM yyyy')}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold text-[16px] -tracking-[0.4px] text-[#30D158]">+{formatCurrency(inc.amount)}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-      
-      <button 
-        onClick={() => logIncome.mutate({ amount: 400, payment_method: 'bank_transfer' })}
-        className="w-full py-4 bg-foreground text-background rounded-[16px] font-bold active:scale-95 transition-transform flex items-center justify-center gap-2 mt-4 shadow-xl"
-      >
-        <Plus size={18} strokeWidth={2.5}/> Log £400 Income Now
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative z-10 flex-1 rounded-[12px] py-2.5 text-[12px] font-bold tracking-wide transition-colors ${
+        isActive ? 'text-[#091014]' : 'text-white/55 hover:text-white/82'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
 
 export function MoneyPage() {
-  const [activeTab, setActiveTab] = useState<'bills'|'subs'|'income'>('bills')
+  const [activeTab, setActiveTab] = useState<MoneyTab>('bills')
+  const [isAddBillOpen, setIsAddBillOpen] = useState(false)
+
+  const { bills, isLoading: billsLoading, markPaid } = useBills()
+  const { subscriptions, isLoading: subsLoading, cancelSubscription } = useSubscriptions()
+  const { incomeEntries, isLoading: incomeLoading, logIncome } = useIncome()
+
+  const billsTotal = totalBillsThisMonth(bills)
+  const activeSubsTotal = totalActiveSubscriptions(subscriptions)
+  const savedFromCancelled = totalCancelledSavings(subscriptions)
+  const weeklyIncomeRef = Number(incomeEntries[0]?.amount ?? 400)
+
+  const summaryConfig = useMemo(() => {
+    if (activeTab === 'subs') {
+      return {
+        eyebrow: 'Subscription Pulse',
+        value: formatCurrency(activeSubsTotal),
+        status: `${subscriptions.filter(sub => sub.status === 'active').length} active`,
+        footer: savedFromCancelled > 0
+          ? `${formatCurrency(savedFromCancelled)} reclaimed from cancelled services`
+          : 'Recurring services are in steady state',
+        metrics: [
+          { label: 'Active services', value: subscriptions.filter(sub => sub.status === 'active').length },
+          { label: 'Cancelled services', value: subscriptions.filter(sub => sub.status === 'cancelled').length },
+          { label: 'Monthly recurring', value: formatCurrency(activeSubsTotal) },
+        ],
+      }
+    }
+
+    if (activeTab === 'income') {
+      return {
+        eyebrow: 'Income Ledger',
+        value: formatCurrency(weeklyIncomeRef),
+        status: `${incomeEntries.length} logs`,
+        footer: 'Income logs feed your weekly planning rhythm',
+        metrics: [
+          { label: 'Recent income logs', value: incomeEntries.length },
+          { label: 'Baseline weekly inflow', value: formatCurrency(weeklyIncomeRef) },
+          { label: 'Last log date', value: incomeEntries[0] ? format(new Date(incomeEntries[0].date), 'dd MMM yyyy') : 'No logs yet' },
+        ],
+      }
+    }
+
+    const dueSoonCount = bills.filter(bill => !bill.is_paid_this_cycle).length
+
+    return {
+      eyebrow: 'Bills Command',
+      value: formatCurrency(billsTotal),
+      status: `${dueSoonCount} open`,
+      footer: 'Upcoming obligations are tracked and payment-ready',
+      metrics: [
+        { label: 'Bills this cycle', value: bills.length },
+        { label: 'Open bills', value: dueSoonCount },
+        { label: 'Monthly load', value: formatCurrency(billsTotal) },
+      ],
+    }
+  }, [activeSubsTotal, activeTab, bills, billsTotal, incomeEntries, savedFromCancelled, subscriptions, weeklyIncomeRef])
+
+  const weeklyTotals = useMemo(() => {
+    const recent = incomeEntries.slice(0, 4).reverse().map(entry => Number(entry.amount))
+    while (recent.length < 4) recent.unshift(0)
+    return recent
+  }, [incomeEntries])
+  const chartMax = Math.max(...weeklyTotals, 1)
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-5 pt-6 pb-2 shrink-0 flex justify-between items-center">
-        <h1 className="text-2xl font-display font-semibold -tracking-[0.5px] text-foreground">Money</h1>
-        <button className="w-9 h-9 bg-foreground text-background rounded-full flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all">
-          <Plus size={18} strokeWidth={2.5} />
-        </button>
-      </div>
+    <PageShell topSlot={<FloatingTopControls hasLivePulse={activeTab === 'bills' && bills.some(bill => !bill.is_paid_this_cycle)} />}>
+      <SummaryCard
+        eyebrow={summaryConfig.eyebrow}
+        eyebrowIcon={<Wallet size={12} strokeWidth={2.2} />}
+        status={summaryConfig.status}
+        value={summaryConfig.value}
+        metrics={summaryConfig.metrics}
+        footer={summaryConfig.footer}
+      />
 
-      <div className="px-5 mb-5 shrink-0">
-        <div className="flex bg-foreground/5 p-1 rounded-[16px] border border-border relative overflow-hidden">
-          <button 
-            onClick={() => setActiveTab('bills')} 
-            className={`flex-1 py-2.5 rounded-[12px] text-[12px] font-bold tracking-wide transition-all z-10 ${activeTab === 'bills' ? 'text-background' : 'text-foreground/50 hover:text-foreground/80'}`}
-          >
-            Bills
-          </button>
-          <button 
-            onClick={() => setActiveTab('subs')} 
-            className={`flex-1 py-2.5 rounded-[12px] text-[12px] font-bold tracking-wide transition-all z-10 ${activeTab === 'subs' ? 'text-background' : 'text-foreground/50 hover:text-foreground/80'}`}
-          >
-            Subscr.
-          </button>
-          <button 
-            onClick={() => setActiveTab('income')} 
-            className={`flex-1 py-2.5 rounded-[12px] text-[12px] font-bold tracking-wide transition-all z-10 ${activeTab === 'income' ? 'text-background' : 'text-foreground/50 hover:text-foreground/80'}`}
-          >
-            Income
-          </button>
-          
-          {/* Animated Background Pill */}
+      <SectionCard>
+        <SectionHeader
+          title="Money Surfaces"
+          subtitle="Bills, subscriptions, and income in one command layer"
+          right={<MetadataChip label="Live" tone="teal" />}
+        />
+
+        <div className="relative overflow-hidden rounded-[16px] border border-white/[0.08] bg-white/[0.03] p-1">
+          <div className="flex">
+            <TabButton label="Bills" isActive={activeTab === 'bills'} onClick={() => setActiveTab('bills')} />
+            <TabButton label="Subscriptions" isActive={activeTab === 'subs'} onClick={() => setActiveTab('subs')} />
+            <TabButton label="Income" isActive={activeTab === 'income'} onClick={() => setActiveTab('income')} />
+          </div>
+
           <motion.div
-            className="absolute top-1 bottom-1 w-[calc(33.33%-2.66px)] bg-foreground rounded-[12px] shadow-sm z-0"
-            animate={{ 
-              x: activeTab === 'bills' ? '0px' : activeTab === 'subs' ? '100%' : '200%' 
-            }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="absolute bottom-1 top-1 w-[calc(33.33%-2.66px)] rounded-[12px] bg-[#73dbe1]"
+            animate={{ x: activeTab === 'bills' ? '0%' : activeTab === 'subs' ? '100%' : '200%' }}
+            transition={{ type: 'spring', stiffness: 320, damping: 26 }}
           />
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-32 hide-scrollbar">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.15 }}
-          >
-            {activeTab === 'bills' && <BillsTab />}
-            {activeTab === 'subs' && <SubscriptionsTab />}
-            {activeTab === 'income' && <IncomeTab />}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          variants={fadeUp(0.02, 8)}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          className="space-y-3"
+        >
+          {activeTab === 'bills' ? (
+            <SectionCard>
+              <SectionHeader
+                title="Upcoming Bills"
+                subtitle={billsLoading ? 'Syncing bills...' : `${bills.length} total bills`}
+                right={<MetadataChip label={billsLoading ? 'Syncing' : 'Tracked'} tone={billsLoading ? 'attention' : 'teal'} />}
+              />
+
+              {billsLoading ? (
+                <p className="py-8 text-center text-sm font-medium text-white/55">Loading bill schedule...</p>
+              ) : bills.length === 0 ? (
+                <EmptyStateCard
+                  title="No recurring bills"
+                  description="Create a bill to keep your monthly outflows predictable."
+                  actionLabel="Add bill"
+                  onAction={() => setIsAddBillOpen(true)}
+                />
+              ) : (
+                <div className="divide-y divide-white/[0.055]">
+                  {bills.map((bill) => {
+                    const label = dueDateLabel(bill.next_due_date)
+                    const isLate = label.includes('overdue') && !bill.is_paid_this_cycle
+                    const isPaid = bill.is_paid_this_cycle
+
+                    return (
+                      <PremiumListRow
+                        key={bill.id}
+                        title={bill.name}
+                        subtitle={`${bill.frequency} · ${label}`}
+                        amount={formatCurrency(bill.amount)}
+                        tone={isLate ? 'attention' : 'expense'}
+                        trailing={isPaid ? (
+                          <MetadataChip label="Paid" tone="success" />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => markPaid.mutate({ id: bill.id, nextDueDate: advanceDueDate(bill.next_due_date, bill.frequency) })}
+                            className="rounded-full border border-[#73dbe1]/26 bg-[#73dbe1]/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#95e4e8]"
+                          >
+                            Mark
+                          </button>
+                        )}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsAddBillOpen(true)}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/[0.18] bg-white/[0.02] px-4 py-3 text-[12px] font-semibold uppercase tracking-[0.12em] text-white/68 transition-colors hover:bg-white/[0.05]"
+              >
+                <Plus size={16} />
+                Add Bill
+              </button>
+            </SectionCard>
+          ) : null}
+
+          {activeTab === 'subs' ? (
+            <SectionCard>
+              <SectionHeader
+                title="Subscriptions"
+                subtitle={subsLoading ? 'Syncing subscriptions...' : `${subscriptions.length} services tracked`}
+                right={<MetadataChip label={subsLoading ? 'Syncing' : 'Recurring'} tone={subsLoading ? 'attention' : 'teal'} />}
+              />
+
+              {subsLoading ? (
+                <p className="py-8 text-center text-sm font-medium text-white/55">Loading subscription ledger...</p>
+              ) : subscriptions.length === 0 ? (
+                <EmptyStateCard
+                  title="No subscriptions"
+                  description="You can keep recurring services visible from this tab."
+                />
+              ) : (
+                <>
+                  <div className="mb-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Monthly active</p>
+                    <p className="mt-1 text-[26px] font-semibold text-white">{formatCurrency(activeSubsTotal)}</p>
+                  </div>
+
+                  <div className="divide-y divide-white/[0.055]">
+                    {subscriptions
+                      .filter(sub => sub.status === 'active')
+                      .map(sub => (
+                        <PremiumListRow
+                          key={sub.id}
+                          title={sub.name}
+                          subtitle={`${sub.category} · ${dueDateLabel(sub.next_billing_date)}`}
+                          amount={formatCurrency(sub.amount)}
+                          tone="expense"
+                          trailing={
+                            <button
+                              type="button"
+                              onClick={() => cancelSubscription.mutate(sub.id)}
+                              className="rounded-full border border-white/[0.14] bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/72"
+                            >
+                              Cancel
+                            </button>
+                          }
+                        />
+                      ))}
+                  </div>
+
+                  {subscriptions.some(sub => sub.status === 'cancelled') ? (
+                    <div className="mt-4 rounded-2xl border border-[#74d4a3]/24 bg-[#74d4a3]/8 px-3 py-3">
+                      <p className="text-[12px] font-medium text-[#9ddfbe]">
+                        {formatCurrency(savedFromCancelled)} per month reclaimed from cancelled services.
+                      </p>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </SectionCard>
+          ) : null}
+
+          {activeTab === 'income' ? (
+            <>
+              <SectionCard>
+                <SectionHeader
+                  title="Income Velocity"
+                  subtitle="Recent weekly bars"
+                  right={<MetadataChip label={incomeLoading ? 'Syncing' : 'Ledger'} tone={incomeLoading ? 'attention' : 'teal'} />}
+                />
+
+                {incomeLoading ? (
+                  <p className="py-8 text-center text-sm font-medium text-white/55">Loading income history...</p>
+                ) : (
+                  <div className="mt-2 flex h-32 items-end gap-3 px-2">
+                    {weeklyTotals.map((value, index) => {
+                      const height = (value / chartMax) * 100
+                      return (
+                        <div key={`${value}-${index}`} className="flex flex-1 flex-col items-center gap-2">
+                          <div className="text-[10px] font-semibold text-white/45">{value > 0 ? formatCurrency(value) : '-'}</div>
+                          <div className="relative flex h-20 w-full items-end overflow-hidden rounded-t-md border border-white/[0.08] bg-white/[0.03]">
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{ height: `${height}%` }}
+                              transition={{ type: 'spring', damping: 20 }}
+                              className="w-full bg-[#73dbe1]/78"
+                            />
+                          </div>
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/45">W{index + 1}</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard>
+                <SectionHeader title="Recent Income Logs" subtitle={`${incomeEntries.length} entries`} />
+                {incomeEntries.length === 0 ? (
+                  <EmptyStateCard
+                    title="No income logged yet"
+                    description="Log income to keep your weekly planning accurate."
+                  />
+                ) : (
+                  <div className="divide-y divide-white/[0.055]">
+                    {incomeEntries.map(entry => (
+                      <PremiumListRow
+                        key={entry.id}
+                        title={entry.payment_method.replace('_', ' ')}
+                        subtitle={format(new Date(entry.date), 'dd MMM yyyy')}
+                        amount={`+${formatCurrency(entry.amount)}`}
+                        tone="income"
+                        leading={<ArrowDownToLine size={15} className="text-[#9ddfbe]" />}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => logIncome.mutate({ amount: weeklyIncomeRef, payment_method: 'bank_transfer' })}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#74d4a3]/28 bg-[#74d4a3]/10 px-4 py-3 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#9ddfbe] transition-colors hover:bg-[#74d4a3]/15"
+                >
+                  <CalendarCheck2 size={16} />
+                  Log Income ({formatCurrency(weeklyIncomeRef)})
+                </button>
+              </SectionCard>
+            </>
+          ) : null}
+        </motion.div>
+      </AnimatePresence>
+
+      <SectionCard>
+        <SectionHeader title="Weekly Cadence" subtitle="Suggested rhythm for this surface" />
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-2 py-2 text-center">
+            <Repeat size={15} className="mx-auto mb-1 text-white/60" />
+            <p className="text-[11px] font-semibold text-white/82">Review</p>
+          </div>
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-2 py-2 text-center">
+            <CheckCircle2 size={15} className="mx-auto mb-1 text-[#9ddfbe]" />
+            <p className="text-[11px] font-semibold text-white/82">Confirm</p>
+          </div>
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-2 py-2 text-center">
+            <Wallet size={15} className="mx-auto mb-1 text-[#95e4e8]" />
+            <p className="text-[11px] font-semibold text-white/82">Adjust</p>
+          </div>
+        </div>
+      </SectionCard>
+
+      <div className="h-6" />
+
+      <AddBillForm isOpen={isAddBillOpen} onClose={() => setIsAddBillOpen(false)} />
+    </PageShell>
   )
 }
