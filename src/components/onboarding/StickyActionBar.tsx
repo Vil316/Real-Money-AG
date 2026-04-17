@@ -21,15 +21,20 @@ export function StickyActionBar({
   className,
 }: StickyActionBarProps) {
   return (
-    <div className={cn('pointer-events-none fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-md px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-8', className)}>
+    <div
+      className={cn(
+        'pointer-events-none fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-md px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-8',
+        className,
+      )}
+    >
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#05070b] via-[#05070b]/96 to-transparent" />
-      <div className="pointer-events-auto relative flex items-center gap-3 rounded-[26px] border border-white/[0.08] bg-[#0a0e13]/92 px-2 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.32)] backdrop-blur-md">
+      <div className="pointer-events-auto relative flex items-center gap-3">
         {secondaryLabel && onSecondary ? (
           <Button
             type="button"
             variant="ghost"
             onClick={onSecondary}
-            className="h-11 rounded-[18px] px-5 text-[14px] font-medium text-white/64 transition-all hover:bg-white/[0.06] hover:text-white/86"
+            className="h-11 rounded-[16px] px-5 text-[14px] font-medium text-white/64 transition-all hover:bg-white/[0.06] hover:text-white/86"
           >
             {secondaryLabel}
           </Button>
@@ -39,7 +44,7 @@ export function StickyActionBar({
           type="button"
           onClick={onPrimary}
           disabled={primaryDisabled || loading}
-          className="h-11 flex-1 rounded-[18px] border border-white/[0.08] bg-[linear-gradient(180deg,#f5f9fc_0%,#e1ecf3_100%)] px-5 text-[14px] font-semibold text-[#081018] shadow-[0_8px_20px_rgba(0,0,0,0.16)] transition-all hover:brightness-[1.02] active:brightness-[0.98] disabled:opacity-50 disabled:cursor-default"
+          className="h-12 flex-1 rounded-[16px] border border-white/[0.1] bg-[linear-gradient(180deg,#f4f8fb_0%,#deeaf2_100%)] px-5 text-[14px] font-semibold text-[#081018] shadow-[0_10px_24px_rgba(0,0,0,0.2)] transition-all hover:brightness-[1.02] active:brightness-[0.98] disabled:cursor-default disabled:opacity-50"
         >
           {loading ? 'Setting up…' : primaryLabel}
         </Button>

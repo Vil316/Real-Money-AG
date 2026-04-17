@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { Check } from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 type ChoiceCardProps = {
@@ -10,6 +9,7 @@ type ChoiceCardProps = {
   selected?: boolean
   onClick: () => void
   tile?: boolean
+  compact?: boolean
   className?: string
 }
 
@@ -20,81 +20,77 @@ export function ChoiceCard({
   selected = false,
   onClick,
   tile = false,
+  compact = false,
   className,
 }: ChoiceCardProps) {
+  const iconSize = tile ? (compact ? 15 : 16) : compact ? 15 : 16
+  const iconStroke = tile ? (compact ? 1.95 : 2) : compact ? 2 : 2.1
+
   return (
     <motion.button
       type="button"
       onClick={onClick}
-      whileTap={{ scale: 0.988 }}
-      animate={{ y: selected ? -1 : 0 }}
-      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+      whileTap={{ scale: 0.985 }}
       className={cn(
         'group relative w-full overflow-hidden rounded-[18px] border text-left transition-all duration-200',
-        tile ? 'px-4 py-4' : 'px-4 py-3.5',
+        tile ? (compact ? 'px-3.5 py-2.5' : 'px-4 py-3.5') : compact ? 'px-3.5 py-2.5' : 'px-4 py-3.5',
         selected
-          ? 'border-[#7dd5df]/40 bg-[linear-gradient(180deg,rgba(118,210,220,0.11),rgba(255,255,255,0.035))] shadow-[0_8px_18px_rgba(78,174,186,0.09)]'
-          : 'border-white/[0.1] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] hover:border-white/[0.15]',
+          ? 'border-[#8edce7]/46 bg-[linear-gradient(180deg,rgba(126,219,230,0.11),rgba(255,255,255,0.035))] shadow-[0_8px_18px_rgba(59,145,157,0.15)]'
+          : 'border-white/[0.1] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] shadow-[inset_0_1px_0_rgba(255,255,255,0.045)] hover:border-white/[0.16] hover:bg-white/[0.048]',
         className,
       )}
     >
-      <div className="relative flex items-start gap-3">
+      <span
+        className={cn(
+          'pointer-events-none absolute inset-0 rounded-[inherit] transition-opacity duration-200',
+          selected
+            ? 'opacity-100 bg-[radial-gradient(circle_at_14%_0%,rgba(189,243,250,0.15),transparent_56%)]'
+            : 'opacity-0',
+        )}
+      />
+
+      <div
+        className={cn(
+          'relative flex items-start gap-2.5',
+          tile && (compact ? 'min-h-[50px] flex-col justify-end gap-1.5' : 'min-h-[58px] flex-col justify-end gap-2'),
+        )}
+      >
         {Icon ? (
           <span
             className={cn(
-              'mt-[2px] shrink-0 transition-colors duration-200',
-              selected ? 'text-[#9feaf3]' : 'text-white/66',
+              'mt-[1px] inline-flex shrink-0 items-center justify-center border transition-colors duration-200',
+              tile ? (compact ? 'h-7 w-7 rounded-[10px]' : 'h-8 w-8 rounded-[11px]') : 'h-7 w-7 rounded-[10px]',
+              selected
+                ? 'border-[#96e1ec]/38 bg-[#8cdbe6]/16 text-[#bdf3f9]'
+                : 'border-white/[0.1] bg-white/[0.03] text-white/58',
             )}
           >
-            <Icon size={17} strokeWidth={2.1} />
+            <Icon size={iconSize} strokeWidth={iconStroke} />
           </span>
         ) : null}
 
         <div className="min-w-0 flex-1">
           <p
             className={cn(
-              'text-[15px] font-semibold tracking-[-0.015em] transition-colors duration-200',
-              selected ? 'text-white' : 'text-white/90',
+              compact
+                ? 'text-[14px] font-medium tracking-[-0.012em] transition-colors duration-200'
+                : 'text-[15px] font-medium tracking-[-0.014em] transition-colors duration-200',
+              selected ? 'text-white' : 'text-white/88',
             )}
           >
             {title}
           </p>
+
           {description ? (
             <p
               className={cn(
                 'mt-1 text-[13px] leading-5 transition-colors duration-200',
-                selected ? 'text-white/50' : 'text-white/38',
+                selected ? 'text-white/50' : 'text-white/36',
               )}
             >
               {description}
             </p>
           ) : null}
-        </div>
-
-        <div className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center">
-          <AnimatePresence mode="wait">
-            {selected ? (
-              <motion.span
-                key="checked"
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.45, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-                className="flex h-6 w-6 items-center justify-center rounded-full border border-[#7dd5df]/56 bg-[#76d2dc]/22 text-[#bfeef5]"
-              >
-                <Check size={12} strokeWidth={3} />
-              </motion.span>
-            ) : (
-              <motion.span
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.12 }}
-                className="flex h-6 w-6 items-center justify-center rounded-full border border-white/[0.12] bg-transparent"
-              />
-            )}
-          </AnimatePresence>
         </div>
       </div>
     </motion.button>

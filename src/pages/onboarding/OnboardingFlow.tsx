@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion'
 import {
   BadgePoundSterling,
   CalendarClock,
@@ -22,6 +22,7 @@ import { OnboardingShell } from '@/components/onboarding/OnboardingShell'
 import { ProgressHeader } from '@/components/onboarding/ProgressHeader'
 import { ChoiceCard } from '@/components/onboarding/ChoiceCard'
 import { StickyActionBar } from '@/components/onboarding/StickyActionBar'
+import { cn } from '@/lib/utils'
 
 type PayCadence = 'weekly' | 'every_2_weeks' | 'monthly' | 'irregular'
 type MoneyLifeArea =
@@ -64,78 +65,54 @@ const payCadenceOptions = [
   { value: 'weekly' as const, title: 'Weekly', icon: CalendarClock },
   { value: 'every_2_weeks' as const, title: 'Every 2 weeks', icon: BadgePoundSterling },
   { value: 'monthly' as const, title: 'Monthly', icon: Landmark },
-  { value: 'irregular' as const, title: 'Irregular', description: 'Income varies', icon: CircleHelp },
+  { value: 'irregular' as const, title: 'Irregular', icon: CircleHelp },
 ]
 
 const moneyLifeOptions = [
-  { value: 'bank_accounts' as const, title: 'Bank accounts', icon: Landmark },
-  { value: 'cash_savings' as const, title: 'Cash savings', icon: PiggyBank },
+  { value: 'bank_accounts' as const, title: 'Accounts', icon: Landmark },
   { value: 'bills' as const, title: 'Bills', icon: ReceiptText },
   { value: 'debt' as const, title: 'Debt', icon: CreditCard },
   { value: 'bnpl' as const, title: 'Buy now pay later', icon: Wallet },
   { value: 'family_support' as const, title: 'Family support', icon: HeartHandshake },
-  { value: 'saving_goals' as const, title: 'Saving goals', icon: Target },
+  { value: 'saving_goals' as const, title: 'Savings goals', icon: Target },
+  { value: 'cash_savings' as const, title: 'Cash savings', icon: PiggyBank },
 ]
 
 const firstFocusOptions = [
-  { value: 'safe_to_spend' as const, title: 'Know what\'s safe to spend', description: '', icon: ShieldCheck },
-  { value: 'stay_on_top_of_bills' as const, title: 'Stay on top of bills', description: '', icon: ReceiptText },
-  { value: 'pay_off_debt' as const, title: 'Pay off debt', description: '', icon: CreditCard },
-  { value: 'save_more' as const, title: 'Save consistently', description: '', icon: PiggyBank },
-  { value: 'everything_in_one_place' as const, title: 'Everything in one place', description: '', icon: Sparkles },
+  { value: 'safe_to_spend' as const, title: 'Safe to spend', icon: ShieldCheck },
+  { value: 'stay_on_top_of_bills' as const, title: 'Bills', icon: ReceiptText },
+  { value: 'pay_off_debt' as const, title: 'Debt', icon: CreditCard },
+  { value: 'save_more' as const, title: 'Saving', icon: PiggyBank },
+  { value: 'everything_in_one_place' as const, title: 'Everything', icon: Sparkles },
 ]
 
 const startModeOptions = [
-  { value: 'connect_account' as const, title: 'Connect an account', description: 'Fastest way to begin', icon: Landmark },
-  { value: 'add_manually' as const, title: 'Add manually', description: 'More control, your pace', icon: HandCoins },
+  { value: 'connect_account' as const, title: 'Connect account', icon: Landmark },
+  { value: 'add_manually' as const, title: 'Add manually', icon: HandCoins },
   { value: 'start_simple' as const, title: 'Start simple', icon: Sparkles },
 ]
 
 const moneyRhythmOptions = [
-  { value: 'mostly_know' as const, title: 'I know where I stand', description: 'Just need a clearer view', icon: ShieldCheck },
-  { value: 'bit_messy' as const, title: 'It\'s a bit messy', description: 'Ready to get clearer', icon: Wallet },
-  { value: 'fresh_start' as const, title: 'Starting fresh', description: 'New approach to tracking', icon: Sparkles },
+  { value: 'mostly_know' as const, title: 'Mostly clear', icon: ShieldCheck },
+  { value: 'bit_messy' as const, title: 'Bit messy', icon: Wallet },
+  { value: 'fresh_start' as const, title: 'Fresh start', icon: Sparkles },
 ]
 
-const moneyLifeOptionMap = new Map(moneyLifeOptions.map(option => [option.value, option]))
-const firstFocusPrimary = firstFocusOptions[0]
-const firstFocusSecondary = firstFocusOptions.slice(1)
-
 const payCadenceLabels: Record<PayCadence, string> = {
-  weekly: 'weekly pay',
-  every_2_weeks: 'bi-weekly pay',
-  monthly: 'monthly pay',
-  irregular: 'variable income',
+  weekly: 'weekly',
+  every_2_weeks: 'every 2 weeks',
+  monthly: 'monthly',
+  irregular: 'irregular',
 }
 
 const moneyLifeLabels: Record<MoneyLifeArea, string> = {
-  bank_accounts: 'spending accounts',
+  bank_accounts: 'accounts',
   cash_savings: 'cash savings',
   bills: 'bills',
   debt: 'debt',
   bnpl: 'buy now pay later',
   family_support: 'family support',
-  saving_goals: 'saving goals',
-}
-
-const firstFocusLabels: Record<FirstFocus, string> = {
-  safe_to_spend: 'what\'s available to spend',
-  stay_on_top_of_bills: 'staying on top of bills',
-  pay_off_debt: 'paying off debt',
-  save_more: 'saving consistently',
-  everything_in_one_place: 'seeing everything at once',
-}
-
-const startModeLabels: Record<StartMode, string> = {
-  connect_account: 'connecting an account',
-  add_manually: 'adding things manually',
-  start_simple: 'starting simple',
-}
-
-const moneyRhythmLabels: Record<MoneyRhythm, string> = {
-  mostly_know: 'a clearer view',
-  bit_messy: 'clarity without pressure',
-  fresh_start: 'a fresh start',
+  saving_goals: 'savings goals',
 }
 
 function readSavedDraft(): OnboardingAnswers {
@@ -165,22 +142,31 @@ function mapPayCadenceToProfileFrequency(payCadence: PayCadence | null): string 
   }
 }
 
-function buildSummaryLine(answers: OnboardingAnswers): string {
-  const cadence = answers.payCadence ? payCadenceLabels[answers.payCadence] : 'money'
-  const focus = answers.firstFocus ? firstFocusLabels[answers.firstFocus] : 'what matters'
-
-  if (answers.moneyLife.length === 0) {
-    return `We'll help you track ${cadence} and focus on ${focus} with clarity.`
-  }
-
-  const highlighted = answers.moneyLife.slice(0, 2).map(item => moneyLifeLabels[item]).join(' and ')
-  return `We'll keep you in sync with ${cadence}, ${highlighted}, and make ${focus} easier to act on.`
+function formatHumanList(items: string[]): string {
+  if (items.length === 0) return ''
+  if (items.length === 1) return items[0]
+  if (items.length === 2) return `${items[0]} and ${items[1]}`
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
 }
 
-function buildSupportLine(answers: OnboardingAnswers): string {
-  const startMode = answers.startMode ? startModeLabels[answers.startMode] : 'begin'
-  const rhythm = answers.moneyRhythm ? moneyRhythmLabels[answers.moneyRhythm] : 'where you are'
-  return `You'll start by ${startMode}. We'll meet you with ${rhythm}, then deepen only when useful.`
+function buildWarmSummaryLine(answers: OnboardingAnswers): string {
+  const cadence = answers.payCadence ? payCadenceLabels[answers.payCadence] : 'irregular'
+  const focusTone: Record<FirstFocus, string> = {
+    safe_to_spend: 'a clearer safe-to-spend view',
+    stay_on_top_of_bills: 'your bills in better shape',
+    pay_off_debt: 'steady debt progress',
+    save_more: 'more consistent saving',
+    everything_in_one_place: 'everything in one place',
+  }
+
+  const selectedLife = answers.moneyLife
+    .slice(0, 2)
+    .map(item => moneyLifeLabels[item])
+
+  const lifeMention = selectedLife.length > 0 ? formatHumanList(selectedLife) : 'main accounts'
+  const focus = answers.firstFocus ? focusTone[answers.firstFocus] : 'a clearer spendable view'
+
+  return `We'll start with your ${cadence} pay rhythm, your ${lifeMention}, and ${focus}.`
 }
 
 export function OnboardingFlow() {
@@ -190,24 +176,18 @@ export function OnboardingFlow() {
   const [screenIndex, setScreenIndex] = useState(0)
   const [answers, setAnswers] = useState<OnboardingAnswers>(() => readSavedDraft())
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const directionRef = useRef(1)
 
   const currentScreen = screens[screenIndex]
   const questionStep = currentScreen === 'welcome' ? 0 : currentScreen === 'summary' ? QUESTION_COUNT : screenIndex
+  const brandLayoutId = 'onboarding-brandmark'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(answers))
   }, [answers])
 
-  const goNext = () => {
-    directionRef.current = 1
-    setScreenIndex(current => Math.min(current + 1, screens.length - 1))
-  }
-  const goBack = () => {
-    directionRef.current = -1
-    setScreenIndex(current => Math.max(current - 1, 0))
-  }
+  const goNext = () => setScreenIndex(current => Math.min(current + 1, screens.length - 1))
+  const goBack = () => setScreenIndex(current => Math.max(current - 1, 0))
 
   const toggleMoneyLife = (value: MoneyLifeArea) => {
     setAnswers(current => {
@@ -278,214 +258,257 @@ export function OnboardingFlow() {
         transition: { duration: 0 },
       }
     : {
-        initial: { opacity: 0, y: 8 },
+        initial: { opacity: 0, y: 3 },
         animate: { opacity: 1, y: 0 },
-        exit: { opacity: 0, y: -6 },
-        transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+        exit: { opacity: 0, y: -2 },
+        transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
       }
+
+  const brandTransition = {
+    type: 'tween' as const,
+    duration: 0.38,
+    ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+  }
+
+  const questionTitleClass =
+    'max-w-[17ch] text-[29px] font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:text-[31px]'
+  const questionSupportClass = 'mt-2.5 max-w-[34ch] text-[12px] leading-[1.78] tracking-[0.018em] text-white/34'
+  const shellClassName =
+    currentScreen === 'welcome' || currentScreen === 'summary' ? 'pb-20 pt-6' : 'pt-7'
+
+  const quickChipClass =
+    'inline-flex items-center gap-2 rounded-[13px] border px-3 py-2 text-[13px] font-medium tracking-[-0.01em] transition-all duration-150'
+  const quickChipSelectedClass =
+    'border-[#93e0eb]/48 bg-[linear-gradient(180deg,rgba(131,216,227,0.1),rgba(255,255,255,0.03))] text-white shadow-[0_4px_10px_rgba(74,164,176,0.14)]'
+  const quickChipIdleClass =
+    'border-white/[0.11] bg-white/[0.02] text-white/74 hover:border-white/[0.18] hover:text-white/88'
+  const strongRowSelectedClass =
+    'border-[#a4ecf5]/64 bg-[linear-gradient(180deg,rgba(150,232,243,0.18),rgba(255,255,255,0.06))] shadow-[0_12px_24px_rgba(59,145,157,0.24)]'
 
   return (
-    <OnboardingShell
-      header={
-        <ProgressHeader
-          currentStep={questionStep}
-          totalSteps={QUESTION_COUNT}
-          onBack={goBack}
-          showBack={screenIndex > 0 && currentScreen !== 'summary'}
-        />
-      }
-      footer={
-        <StickyActionBar
-          primaryLabel={currentScreen === 'welcome' ? 'Begin' : currentScreen === 'summary' ? 'Open dashboard' : 'Continue'}
-          onPrimary={currentScreen === 'summary' ? completeOnboarding : goNext}
-          primaryDisabled={!canContinue}
-          loading={isSubmitting}
-        />
-      }
-    >
-      <AnimatePresence mode="wait">
-        <motion.section key={currentScreen} {...transitionProps} className="flex min-h-full flex-col">
-          {currentScreen === 'welcome' ? (
-            <div className="flex flex-1 flex-col items-center justify-center pb-10 text-center">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.05] px-3.5 py-1.5">
-                <Sparkles size={13} className="text-[#9ce8f1]" />
-                <span className="text-[11px] font-medium tracking-[0.04em] text-white/70">RealMoney onboarding</span>
+    <LayoutGroup id="onboarding-flow">
+      <OnboardingShell
+        className={shellClassName}
+        header={
+          <ProgressHeader
+            title={currentScreen === 'welcome' || currentScreen === 'summary' ? '' : 'RealMoney'}
+            brandLayoutId={brandLayoutId}
+            currentStep={questionStep}
+            totalSteps={QUESTION_COUNT}
+            onBack={goBack}
+            showBack={screenIndex > 0 && currentScreen !== 'summary'}
+          />
+        }
+        footer={
+          <StickyActionBar
+            primaryLabel={currentScreen === 'welcome' ? 'Start setup' : currentScreen === 'summary' ? 'See my dashboard' : 'Continue'}
+            onPrimary={currentScreen === 'summary' ? completeOnboarding : goNext}
+            primaryDisabled={!canContinue}
+            loading={isSubmitting}
+            className={currentScreen === 'welcome' ? 'pt-1' : undefined}
+          />
+        }
+      >
+        <AnimatePresence initial={false} mode="sync">
+          <motion.section key={currentScreen} {...transitionProps} className="flex min-h-full flex-col">
+            {currentScreen === 'welcome' ? (
+              <div className="relative flex flex-1 flex-col items-center justify-end px-3 pb-8 pt-14 text-center">
+                <div className="pointer-events-none absolute left-1/2 top-[52%] h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(137,225,236,0.16),rgba(137,225,236,0)_70%)] blur-2xl" />
+
+                <div className="relative flex flex-col items-center">
+                  <motion.p
+                    layout
+                    layoutId={brandLayoutId}
+                    transition={brandTransition}
+                    className="text-[11px] font-medium tracking-[0.19em] text-white/42"
+                  >
+                    RealMoney
+                  </motion.p>
+                  <h1 className="mt-4 max-w-[11ch] text-[43px] font-semibold leading-[0.98] tracking-[-0.052em] text-white sm:text-[47px]">
+                    A clearer view
+                    <br />
+                    of your money.
+                  </h1>
+                  <p className="mt-2.5 max-w-[28ch] text-[13px] leading-[1.72] tracking-[0.02em] text-white/36">
+                    Built for real life money.
+                  </p>
+                </div>
+
+                <div className="relative mt-3 flex w-full items-center justify-center">
+                  <div className="h-px w-28 bg-gradient-to-r from-transparent via-[#93dfe9]/74 to-transparent" />
+                </div>
               </div>
+            ) : null}
 
-              <h1 className="mt-7 text-[36px] font-semibold leading-[1.02] tracking-[-0.045em] text-white">
-                Your money, finally clear.
-              </h1>
+            {currentScreen === 'pay' ? (
+              <div className="pt-0">
+                <h2 className={questionTitleClass}>How often are you paid?</h2>
+                <p className={questionSupportClass}>This sets your money rhythm.</p>
 
-              <p className="mt-5 max-w-[30ch] text-[14px] leading-[1.65] text-white/44">
-                Five quick choices, then a dashboard that fits how you actually live.
-              </p>
-            </div>
-          ) : null}
+                <div className="mt-6 grid grid-cols-2 gap-2">
+                  {payCadenceOptions.map(option => {
+                    const selected = answers.payCadence === option.value
+                    const Icon = option.icon
 
-          {currentScreen === 'pay' ? (
-            <div className="pt-4">
-              <div>
-                <h2 className="text-[31px] font-semibold leading-[1.04] tracking-[-0.038em] text-white">How often are you paid?</h2>
-                <p className="mt-3 text-[13px] leading-6 text-white/42">We'll tune your rhythm around this.</p>
+                    return (
+                      <motion.button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAnswers(current => ({ ...current, payCadence: option.value }))}
+                        whileTap={{ scale: 0.985 }}
+                        className={cn(
+                          quickChipClass,
+                          'min-h-[62px]',
+                          selected ? quickChipSelectedClass : quickChipIdleClass,
+                        )}
+                      >
+                        <Icon
+                          size={14}
+                          strokeWidth={1.9}
+                          className={cn('shrink-0 transition-colors duration-150', selected ? 'text-[#c3f4fa]' : 'text-white/44')}
+                        />
+                        <span>{option.title}</span>
+                      </motion.button>
+                    )
+                  })}
+                </div>
               </div>
+            ) : null}
 
-              <div className="mt-9 grid grid-cols-2 gap-3">
-                {payCadenceOptions.map(option => (
-                  <ChoiceCard
-                    key={option.value}
-                    title={option.title}
-                    description={option.description}
-                    icon={option.icon}
-                    tile
-                    selected={answers.payCadence === option.value}
-                    className="min-h-[128px]"
-                    onClick={() => setAnswers(current => ({ ...current, payCadence: option.value }))}
-                  />
-                ))}
+            {currentScreen === 'life' ? (
+              <div className="pt-0">
+                <h2 className={questionTitleClass}>What do you want in one place?</h2>
+                <p className={questionSupportClass}>Pick what should stay visible first.</p>
+
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {moneyLifeOptions.map(option => {
+                    const selected = answers.moneyLife.includes(option.value)
+                    const Icon = option.icon
+
+                    return (
+                      <motion.button
+                        key={option.value}
+                        type="button"
+                        onClick={() => toggleMoneyLife(option.value)}
+                        whileTap={{ scale: 0.985 }}
+                        className={cn(
+                          quickChipClass,
+                          selected ? quickChipSelectedClass : quickChipIdleClass,
+                        )}
+                      >
+                        <Icon
+                          size={14}
+                          strokeWidth={2}
+                          className={cn('shrink-0 transition-colors duration-150', selected ? 'text-[#c3f4fa]' : 'text-white/44')}
+                        />
+                        <span>{option.title}</span>
+                      </motion.button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {currentScreen === 'life' ? (
-            <div className="pt-4">
-              <div>
-                <h2 className="text-[31px] font-semibold leading-[1.04] tracking-[-0.038em] text-white">What needs attention right now?</h2>
-                <p className="mt-3 text-[13px] leading-6 text-white/42">Pick what you want in your first view.</p>
-              </div>
+            {currentScreen === 'focus' ? (
+              <div className="pt-0">
+                <h2 className={questionTitleClass}>What matters most first?</h2>
+                <p className={questionSupportClass}>We will prioritize this from day one.</p>
 
-              <div className="mt-8 grid grid-cols-2 gap-2.5">
-                {moneyLifeOptions.map(option => (
-                  <ChoiceCard
-                    key={option.value}
-                    title={option.title}
-                    icon={option.icon}
-                    tile
-                    className="min-h-[90px]"
-                    selected={answers.moneyLife.includes(option.value)}
-                    onClick={() => toggleMoneyLife(option.value)}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {currentScreen === 'focus' ? (
-            <div className="pt-4">
-              <div>
-                <h2 className="text-[31px] font-semibold leading-[1.04] tracking-[-0.038em] text-white">What needs the most support?</h2>
-                <p className="mt-3 text-[13px] leading-6 text-white/42">We'll prioritize this first.</p>
-              </div>
-
-              <div className="mt-9 space-y-3">
-                <ChoiceCard
-                  title={firstFocusPrimary.title}
-                  description={firstFocusPrimary.description}
-                  icon={firstFocusPrimary.icon}
-                  selected={answers.firstFocus === firstFocusPrimary.value}
-                  className="min-h-[116px]"
-                  onClick={() => setAnswers(current => ({ ...current, firstFocus: firstFocusPrimary.value }))}
-                />
-
-                <div className="grid grid-cols-2 gap-3">
-                  {firstFocusSecondary.map(option => (
+                <div className="mt-6 space-y-2">
+                  {firstFocusOptions.map(option => (
                     <ChoiceCard
                       key={option.value}
                       title={option.title}
-                      description={option.description}
                       icon={option.icon}
-                      tile
-                      className="min-h-[130px]"
+                      compact
                       selected={answers.firstFocus === option.value}
+                      className="min-h-[68px]"
                       onClick={() => setAnswers(current => ({ ...current, firstFocus: option.value }))}
                     />
                   ))}
                 </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {currentScreen === 'begin' ? (
-            <div className="pt-4">
-              <div>
-                <h2 className="text-[31px] font-semibold leading-[1.04] tracking-[-0.038em] text-white">How should we start?</h2>
-                <p className="mt-3 text-[13px] leading-6 text-white/42">Choose your setup pace.</p>
+            {currentScreen === 'begin' ? (
+              <div className="pt-0">
+                <h2 className={questionTitleClass}>How do you want to start?</h2>
+                <p className={questionSupportClass}>Pick the setup pace that fits today.</p>
+
+                <div className="mt-6 space-y-2">
+                  {startModeOptions.map(option => {
+                    const selected = answers.startMode === option.value
+
+                    return (
+                      <ChoiceCard
+                        key={option.value}
+                        title={option.title}
+                        icon={option.icon}
+                        compact
+                        selected={selected}
+                        className={cn('min-h-[68px]', selected && strongRowSelectedClass)}
+                        onClick={() => setAnswers(current => ({ ...current, startMode: option.value }))}
+                      />
+                    )
+                  })}
+                </div>
               </div>
+            ) : null}
 
-              <div className="mt-9 grid grid-cols-2 gap-3">
-                {startModeOptions.slice(0, 2).map(option => (
-                  <ChoiceCard
-                    key={option.value}
-                    title={option.title}
-                    description={option.description}
-                    icon={option.icon}
-                    tile
-                    className="min-h-[136px]"
-                    selected={answers.startMode === option.value}
-                    onClick={() => setAnswers(current => ({ ...current, startMode: option.value }))}
-                  />
-                ))}
-                <ChoiceCard
-                  title={startModeOptions[2].title}
-                  description={startModeOptions[2].description}
-                  icon={startModeOptions[2].icon}
-                  selected={answers.startMode === startModeOptions[2].value}
-                  className="col-span-2 min-h-[108px]"
-                  onClick={() => setAnswers(current => ({ ...current, startMode: startModeOptions[2].value }))}
-                />
+            {currentScreen === 'rhythm' ? (
+              <div className="pt-0">
+                <h2 className={questionTitleClass}>Where are you right now?</h2>
+                <p className={questionSupportClass}>No pressure. We meet you where you are.</p>
+
+                <div className="mt-6 space-y-2">
+                  {moneyRhythmOptions.map(option => {
+                    const selected = answers.moneyRhythm === option.value
+
+                    return (
+                      <ChoiceCard
+                        key={option.value}
+                        title={option.title}
+                        icon={option.icon}
+                        compact
+                        selected={selected}
+                        className={cn('min-h-[68px]', selected && strongRowSelectedClass)}
+                        onClick={() => setAnswers(current => ({ ...current, moneyRhythm: option.value }))}
+                      />
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {currentScreen === 'rhythm' ? (
-            <div className="pt-4">
-              <div>
-                <h2 className="text-[31px] font-semibold leading-[1.04] tracking-[-0.038em] text-white">Where are you right now?</h2>
-                <p className="mt-3 text-[13px] leading-6 text-white/42">We'll meet you there.</p>
+            {currentScreen === 'summary' ? (
+              <div className="relative flex flex-1 flex-col items-center justify-end px-3 pb-8 pt-14 text-center">
+                <div className="pointer-events-none absolute left-1/2 top-[52%] h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(137,225,236,0.14),rgba(137,225,236,0)_70%)] blur-2xl" />
+
+                <div className="relative flex flex-col items-center">
+                  <motion.p
+                    layout
+                    layoutId={brandLayoutId}
+                    transition={brandTransition}
+                    className="text-[11px] font-medium tracking-[0.19em] text-white/42"
+                  >
+                    RealMoney
+                  </motion.p>
+                  <h2 className="mt-4 max-w-[11ch] text-[41px] font-semibold leading-[1.01] tracking-[-0.052em] text-white">
+                    A clearer starting point.
+                  </h2>
+                  <p className="mt-2.5 max-w-[32ch] text-[13px] leading-[1.74] tracking-[0.012em] text-white/62">
+                    {buildWarmSummaryLine(answers)}
+                  </p>
+                </div>
+
+                <div className="relative mt-3 flex w-full items-center justify-center">
+                  <div className="h-px w-28 bg-gradient-to-r from-transparent via-[#93dfe9]/74 to-transparent" />
+                </div>
               </div>
-
-              <div className="mt-9 space-y-3">
-                {moneyRhythmOptions.map(option => (
-                  <ChoiceCard
-                    key={option.value}
-                    title={option.title}
-                    description={option.description}
-                    icon={option.icon}
-                    selected={answers.moneyRhythm === option.value}
-                    className="min-h-[106px]"
-                    onClick={() => setAnswers(current => ({ ...current, moneyRhythm: option.value }))}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {currentScreen === 'summary' ? (
-            <div className="flex flex-1 flex-col pt-4">
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.05] px-3.5 py-1.5">
-                <Sparkles size={13} className="text-[#9ce8f1]" />
-                <span className="text-[11px] font-medium tracking-[0.04em] text-white/70">Setup complete</span>
-              </div>
-
-              <h2 className="mt-8 max-w-[11ch] text-[46px] font-semibold leading-[0.96] tracking-[-0.06em] text-white">
-                You are ready.
-              </h2>
-
-              <p className="mt-7 max-w-[30ch] text-[15px] leading-[1.72] text-white/50">
-                {buildSummaryLine(answers)}
-              </p>
-
-              <div className="mt-9 rounded-[28px] border border-white/[0.11] bg-[linear-gradient(170deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-6">
-                <p className="text-[11px] font-medium uppercase tracking-[0.11em] text-white/44">Your first dashboard</p>
-                <p className="mt-4 text-[15px] leading-[1.7] text-white/80">{buildSupportLine(answers)}</p>
-              </div>
-
-              <p className="mt-6 text-[13px] leading-[1.62] text-white/42">
-                We'll keep this light. You can add detail any time.
-              </p>
-            </div>
-          ) : null}
-        </motion.section>
-      </AnimatePresence>
-    </OnboardingShell>
+            ) : null}
+          </motion.section>
+        </AnimatePresence>
+      </OnboardingShell>
+    </LayoutGroup>
   )
 }
