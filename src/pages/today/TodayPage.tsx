@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { cn, formatCurrency, calculateSafeToSpend, getActionItems, advanceDueDate } from '@/lib/utils'
+import { cn, formatCurrency, calculateSafeToSpend, advanceDueDate } from '@/lib/utils'
+import { buildActionCenterModel } from '@/lib/actionCenter'
+import { evaluateSetupCompleteness } from '@/lib/setupCompleteness'
+import { evaluateWeeklyPressure } from '@/lib/weeklyPressure'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useBills } from '@/hooks/useBills'
 import { useObligations } from '@/hooks/useObligations'
@@ -10,7 +13,7 @@ import { useSavings } from '@/hooks/useSavings'
 import { useIncome } from '@/hooks/useIncome'
 import { useProfile } from '@/hooks/useProfile'
 import { useTransactions } from '@/hooks/useTransactions'
-import type { ActionItem, FrequencyType } from '@/types'
+import type { ActionCenterAction, FrequencyType, WeeklyPressureAttentionLevel } from '@/types'
 import { Bell, Link2, Plus, Shield, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence, useMotionValueEvent, useReducedMotion, useScroll } from 'framer-motion'
 import { differenceInCalendarDays, endOfWeek, format, isToday, isYesterday, parseISO } from 'date-fns'
@@ -20,12 +23,14 @@ import { AddAccountForm } from '@/components/modals/forms/AddAccountForm'
 import { AddBillForm } from '@/components/modals/forms/AddBillForm'
 import { AddDebtForm } from '@/components/modals/forms/AddDebtForm'
 import { AddGoalForm } from '@/components/modals/forms/AddGoalForm'
+import { QuickCompleteActionSheet } from '@/components/modals/forms/QuickCompleteActionSheet'
 import { FloatingIconButton } from '@/components/today/FloatingIconButton'
 import { AnimatedHeroAmount } from '@/components/today/AnimatedHeroAmount'
 import { ActionFeedRow } from '@/components/today/ActionFeedRow'
 
 type SystemFeedRow = {
   id: string
+  role?: 'action' | 'awareness' | 'reassurance'
   title: string
   detail: string
   tone?: 'info' | 'neutral' | 'success' | 'attention'
@@ -68,23 +73,134 @@ function formatActivityTime(date: string): string {
   return format(value, 'dd MMM')
 }
 
-function buildSystemStatus(protectedAmount: number, upcomingCount: number): string {
-  if (protectedAmount <= 0 && upcomingCount === 0) {
-    return 'No cash pressure in next 7 days'
+function buildSystemStatus(data: {
+  attentionLevel: WeeklyPressureAttentionLevel
+  protectedThisWeek: number
+  dueSoonCount: number
+  upcomingCount: number
+  undatedProtectedCount: number
+  completionScore: number
+  missingItemsCount: number
+  blockingItemsCount: number
+  trustLevel: 'low' | 'medium' | 'high'
+  confidenceImpact: {
+    weakensSafeToSpend: boolean
+    weakensPrioritization: boolean
+    weakensTrust: boolean
+  }
+}): string {
+  const trustLabel = data.trustLevel === 'high'
+    ? 'confidence strong'
+    : data.trustLevel === 'medium'
+      ? 'confidence building'
+      : 'confidence needs setup'
+
+  const setupCue = data.blockingItemsCount > 0
+    ? 'finish key setup'
+    : data.missingItemsCount > 0
+      ? 'refine setup details'
+      : 'setup in shape'
+
+  if (data.attentionLevel === 'calm') {
+    return data.missingItemsCount === 0
+      ? `Short-term cash looks clear · ${trustLabel}`
+      : `Short-term cash looks clear · ${setupCue}`
   }
 
-  if (upcomingCount === 0) {
-    return `${formatCurrency(protectedAmount)} ring-fenced with no urgent cash events`
+  if (data.attentionLevel === 'attention') {
+    return `${data.dueSoonCount} due soon · ${trustLabel}`
   }
 
-  return `${upcomingCount} commitment${upcomingCount === 1 ? '' : 's'} covered in the next 7 days`
+  if (data.dueSoonCount > 0) {
+    return `${data.dueSoonCount} due soon · ${trustLabel}`
+  }
+
+  return data.missingItemsCount > 0
+    ? `Upcoming commitments ahead · ${setupCue}`
+    : `Upcoming commitments ahead · ${trustLabel}`
 }
 
-function getActionButtonLabel(item: ActionItem): string | undefined {
-  if (item.type === 'payday') return 'Log'
-  if (item.canMarkPaid) return 'Pay'
-  if (item.canMarkDone) return 'Done'
-  return undefined
+function getPressurePointDetailLine(item: {
+  title: string
+  amount: number
+  sourceType: 'bill' | 'obligation' | 'debt'
+  timingBucket: 'dueSoon' | 'upcoming' | 'undated'
+}): string {
+  if (item.timingBucket === 'undated') {
+    const timingLabel = item.sourceType === 'obligation'
+      ? 'commitment timing to be confirmed'
+      : 'date to be confirmed'
+    return `${item.title} · ${formatCurrency(item.amount)} · ${timingLabel}`
+  }
+
+  const timingLabel = item.timingBucket === 'dueSoon'
+    ? 'due within 7 days'
+    : 'due in 8 to 21 days'
+
+  return `${item.title} · ${formatCurrency(item.amount)} · ${timingLabel}`
+}
+
+function getActionFeedTone(priority: ActionCenterAction['priority']): 'info' | 'neutral' | 'success' | 'attention' {
+  if (priority === 'urgent' || priority === 'due-soon') return 'attention'
+  if (priority === 'missing-setup') return 'info'
+  if (priority === 'reassurance') return 'success'
+  return 'neutral'
+}
+
+function extractEntityId(actionId: string, prefix: string): string | null {
+  const fullPrefix = `${prefix}:`
+  if (!actionId.startsWith(fullPrefix)) return null
+
+  const id = actionId.slice(fullPrefix.length).trim()
+  return id.length > 0 ? id : null
+}
+
+function isQuickCompleteCallback(callbackHint: string | undefined): boolean {
+  return callbackHint === 'update_debt_minimum_payment'
+    || callbackHint === 'set_debt_payment_date'
+    || callbackHint === 'set_obligation_due_date'
+    || callbackHint === 'set_weekly_contribution'
+    || callbackHint === 'log_income'
+}
+
+function getActionVarietyBucket(action: ActionCenterAction): string {
+  if (action.sourceType === 'debt') return 'debt'
+  if (action.sourceType === 'income') return 'income'
+  if (action.sourceType === 'obligation') return 'obligation'
+  if (action.sourceType === 'savings') return 'savings'
+  if (action.sourceType === 'review' || action.priority === 'planning') return 'review-planning'
+  return action.sourceType
+}
+
+function selectBalancedTopActions(actions: ActionCenterAction[], maxActions: number): ActionCenterAction[] {
+  if (!Array.isArray(actions) || actions.length === 0 || maxActions <= 0) return []
+
+  const selected: ActionCenterAction[] = []
+  const selectedIds = new Set<string>()
+  const usedBuckets = new Set<string>()
+
+  const first = actions[0]
+  if (!first) return []
+
+  selected.push(first)
+  selectedIds.add(first.id)
+  usedBuckets.add(getActionVarietyBucket(first))
+
+  while (selected.length < maxActions) {
+    const remaining = actions.filter(action => !selectedIds.has(action.id))
+    if (remaining.length === 0) break
+
+    const variedCandidate = remaining.find(action => !usedBuckets.has(getActionVarietyBucket(action)))
+    const next = variedCandidate ?? remaining[0]
+
+    if (!next) break
+
+    selected.push(next)
+    selectedIds.add(next.id)
+    usedBuckets.add(getActionVarietyBucket(next))
+  }
+
+  return selected
 }
 
 export function TodayPage() {
@@ -95,6 +211,7 @@ export function TodayPage() {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
   const [activeActionForm, setActiveActionForm] = useState<string | null>(null)
+  const [quickCompleteAction, setQuickCompleteAction] = useState<ActionCenterAction | null>(null)
   const [isTopClusterCondensed, setIsTopClusterCondensed] = useState(false)
 
   useMotionValueEvent(scrollY, 'change', (latest) => {
@@ -108,16 +225,42 @@ export function TodayPage() {
   const { debts } = useDebts()
   const { obligations, markDone } = useObligations()
   const { goals: savingsGoals } = useSavings()
-  const { incomeEntries, logIncome } = useIncome()
+  const { incomeEntries } = useIncome()
   const { transactions } = useTransactions()
 
   const { profile } = useProfile()
 
-  const safeData = calculateSafeToSpend({ accounts, bills, obligations, debts })
-
-  const actionItems = getActionItems({
-    bills, subscriptions, debts, obligations, savingsGoals, incomeEntries, profile: profile ?? null
+  const safeData = calculateSafeToSpend({ accounts, bills, obligations, debts, profile })
+  const setupCompleteness = evaluateSetupCompleteness({
+    accounts,
+    debts,
+    obligations,
+    savingsGoals,
+    incomeEntries,
+    profile: profile ?? null,
   })
+  const pressureData = evaluateWeeklyPressure({
+    bills,
+    obligations,
+    debts,
+    safeToSpend: safeData.safeToSpend,
+  })
+  const actionCenterModel = buildActionCenterModel({
+    bills,
+    obligations,
+    debts,
+    savingsGoals,
+    incomeEntries,
+    profile: profile ?? null,
+    safeToSpend: safeData.safeToSpend,
+    weeklyPressure: pressureData,
+    maxTopActions: 3,
+    includeReassurance: true,
+  })
+  const balancedTopActions = useMemo(
+    () => selectBalancedTopActions(actionCenterModel.actions, 3),
+    [actionCenterModel.actions],
+  )
 
   const sortedAccounts = [...accounts].sort((left, right) => Number(right.balance) - Number(left.balance))
   const visibleAccounts = sortedAccounts.slice(0, 4)
@@ -128,7 +271,6 @@ export function TodayPage() {
   const visibleTransactions = transactionsWithTitle.slice(0, 4)
   const linkedAccount = accounts.find(account => account.is_linked || !!account.provider)
   const expensesToday = transactions.filter(transaction => isToday(parseISO(transaction.date)) && Number(transaction.amount) < 0)
-  const urgentAction = actionItems.find(item => item.id !== 'all_good' && item.type !== 'all_good')
   const upcomingBills = [...bills]
     .filter(bill => !bill.is_paid_this_cycle)
     .sort((left, right) => left.next_due_date.localeCompare(right.next_due_date))
@@ -146,36 +288,89 @@ export function TodayPage() {
   const nextRecurringDays = nextSubscription
     ? Math.max(differenceInCalendarDays(parseISO(nextSubscription.next_billing_date), new Date()), 0)
     : null
-  const recentCommitmentCount = bills.filter(bill => !bill.is_paid_this_cycle && differenceInCalendarDays(parseISO(bill.next_due_date), new Date()) <= 7).length +
-    obligations.filter(obligation => !obligation.is_fulfilled_this_cycle && obligation.amount_type === 'fixed').length +
-    debts.filter(debt => !debt.is_settled && debt.next_payment_date && differenceInCalendarDays(parseISO(debt.next_payment_date), new Date()) <= 7).length
-  const systemStatus = buildSystemStatus(safeData.protectedBills + safeData.protectedObs, recentCommitmentCount)
+  const undatedProtectedCount = pressureData.attentionItems.filter(
+    item => item.timingBucket === 'undated' && item.includedInProtection,
+  ).length
+  const systemStatus = buildSystemStatus({
+    attentionLevel: pressureData.attentionLevel,
+    protectedThisWeek: pressureData.protectedThisWeek,
+    dueSoonCount: pressureData.dueSoonCount,
+    upcomingCount: pressureData.upcomingCount,
+    undatedProtectedCount,
+    completionScore: setupCompleteness.completionScore,
+    missingItemsCount: setupCompleteness.missingItemsCount,
+    blockingItemsCount: setupCompleteness.blockingItems.length,
+    trustLevel: setupCompleteness.trustLevel,
+    confidenceImpact: setupCompleteness.confidenceImpact,
+  })
+  const nextPressurePointDetail = pressureData.nextPressurePoint
+    ? getPressurePointDetailLine(pressureData.nextPressurePoint)
+    : 'No immediate pressure points over the next 21 days.'
   const profileInitial = profile?.display_name?.charAt(0).toUpperCase() ?? 'R'
-  const hasNewActivity = expensesToday.length > 0 || !!urgentAction
-  const topPillText = hasNewActivity ? 'Live updates' : 'System stable'
+  const hasNewActivity =
+    expensesToday.length > 0 ||
+    actionCenterModel.counts.urgent > 0 ||
+    actionCenterModel.counts.dueSoon > 0
+  const expenseOutflowToday = Math.abs(
+    expensesToday.reduce((sum, tx) => sum + Math.min(Number(tx.amount), 0), 0),
+  )
+  const pressurePillText = pressureData.attentionLevel === 'attention'
+    ? 'Pressure high'
+    : pressureData.attentionLevel === 'watch'
+      ? 'Watch window'
+      : 'System stable'
+  const topPillText = hasNewActivity ? 'Live updates' : pressurePillText
 
   const [toasts, setToasts] = useState<string[]>([])
 
-  const handleAction = (item: ActionItem) => {
-    if (item.type === 'payday') {
-      logIncome.mutate({ amount: profile?.income_amount || 0, payment_method: 'bank_transfer' })
-      toast("Income logged! ✓")
-    } else if (item.canMarkPaid) {
-      if (item.referenceId) {
-        const bill = bills.find(b => b.id === item.referenceId)
-        if (bill) {
-          markPaid.mutate({ id: bill.id, nextDueDate: advanceDueDate(bill.next_due_date, bill.frequency) })
-          toast(`${bill.name} marked paid`)
-        }
+  const handleAction = (action: ActionCenterAction) => {
+    if (isQuickCompleteCallback(action.callbackHint)) {
+      setQuickCompleteAction(action)
+      return
+    }
+
+    if (action.callbackHint === 'mark_bill_paid') {
+      const billId = extractEntityId(action.id, 'bill')
+      const bill = billId ? bills.find(item => item.id === billId) : undefined
+      if (bill) {
+        markPaid.mutate({ id: bill.id, nextDueDate: advanceDueDate(bill.next_due_date, bill.frequency) })
+        toast(`${bill.name} marked paid`)
+        return
       }
-    } else if (item.canMarkDone) {
-      if (item.referenceId) {
-        const ob = obligations.find(o => o.id === item.referenceId)
-        if (ob) {
-          markDone.mutate({ id: ob.id, amount: ob.amount || 0 })
-          toast(`${ob.name} marked done`)
-        }
+    }
+
+    if (action.callbackHint === 'mark_obligation_done') {
+      const obligationId = extractEntityId(action.id, 'obligation')
+      const obligation = obligationId ? obligations.find(item => item.id === obligationId) : undefined
+      if (obligation) {
+        markDone.mutate({ id: obligation.id, amount: obligation.amount || 0 })
+        toast(`${obligation.name} marked done`)
+        return
       }
+    }
+
+    if (action.routeHint) {
+      navigate(action.routeHint)
+      return
+    }
+
+    if (action.sourceType === 'bill' || action.sourceType === 'obligation') {
+      navigate('/money')
+      return
+    }
+
+    if (action.sourceType === 'debt') {
+      navigate('/debts')
+      return
+    }
+
+    if (action.sourceType === 'savings') {
+      navigate('/savings')
+      return
+    }
+
+    if (action.sourceType === 'review') {
+      navigate('/checkin')
     }
   }
 
@@ -184,49 +379,19 @@ export function TodayPage() {
     setTimeout(() => setToasts(prev => prev.slice(1)), 3000)
   }
 
-  const systemFeed: SystemFeedRow[] = [
-    linkedAccount
-      ? {
-          id: 'linked-account',
-          title: `${linkedAccount.name} linked successfully`,
-          detail: 'Connection healthy and ready for sync',
-          tone: 'success',
-        }
-      : {
-          id: 'tracking-ready',
-          title: `${accounts.length || 0} account${accounts.length === 1 ? '' : 's'} under watch`,
-          detail: 'Financial system is monitoring your cash position',
-          tone: 'neutral',
-        },
-    expensesToday.length > 0
-      ? {
-          id: 'expenses-today',
-          title: `${expensesToday.length} new expense${expensesToday.length === 1 ? '' : 's'} logged today`,
-          detail: 'Recent spending is already reflected in Safe to Spend',
-          tone: 'info',
-        }
-      : {
-          id: 'quiet-ledger',
-          title: 'No new expenses logged today',
-          detail: 'Your ledger has been quiet since the last review',
-          tone: 'neutral',
-        },
-    urgentAction
-      ? {
-          id: urgentAction.id,
-          title: urgentAction.title,
-          detail: urgentAction.description,
-          tone: urgentAction.priority === 'high' || urgentAction.priority === 'medium' ? 'attention' : 'info',
-          actionLabel: getActionButtonLabel(urgentAction),
-          onAction: () => handleAction(urgentAction),
-        }
-      : {
-          id: 'no-urgent-action',
-          title: 'No urgent action needed',
-          detail: 'All near-term obligations are covered right now',
-          tone: 'success',
-        },
-  ]
+  const systemFeed: SystemFeedRow[] = balancedTopActions.map((action) => ({
+    id: action.id,
+    role: action.priority === 'reassurance'
+      ? 'reassurance'
+      : action.priority === 'planning'
+        ? 'awareness'
+        : 'action',
+    title: action.title,
+    detail: action.detail,
+    tone: getActionFeedTone(action.priority),
+    actionLabel: action.actionLabel,
+    onAction: () => handleAction(action),
+  }))
 
   const comingUp: UpcomingRow[] = [
     nextBill && nextBillDays === 0
@@ -243,26 +408,26 @@ export function TodayPage() {
           }
       : {
           id: 'no-bill-today',
-          title: 'No bill due today',
+          title: 'No bill due right now',
           detail: nextBill
-            ? `${nextBill.name} lands ${nextBillDays} day${nextBillDays === 1 ? '' : 's'} from now`
-            : 'No pending bills are scheduled at the moment',
+            ? `${nextBill.name} is due in ${nextBillDays} day${nextBillDays === 1 ? '' : 's'}`
+            : 'No pending bills are scheduled in the current window',
         },
     {
       id: 'weekly-review',
       title: `Weekly review due in ${weeklyReviewDays} day${weeklyReviewDays === 1 ? '' : 's'}`,
-      detail: 'Close the week with a system-level cash check',
+      detail: `${pressureData.dueSoonCount} due soon · ${pressureData.upcomingCount} ahead · ${formatCurrency(pressureData.protectedThisWeek)} set aside this week`,
     },
     nextSubscription
       ? {
           id: 'next-recurring-payment',
-          title: `Next recurring payment in ${nextRecurringDays} day${nextRecurringDays === 1 ? '' : 's'}`,
-          detail: `${nextSubscription.name} · ${formatCurrency(nextSubscription.amount)}`,
+          title: `Next subscription charge in ${nextRecurringDays} day${nextRecurringDays === 1 ? '' : 's'}`,
+          detail: `${nextSubscription.name} · ${formatCurrency(nextSubscription.amount)} · ${nextPressurePointDetail}`,
         }
       : {
           id: 'no-recurring-payments',
-          title: 'No recurring payment queued',
-          detail: 'Subscriptions and scheduled debits are currently clear',
+          title: 'No subscription charge queued',
+          detail: nextPressurePointDetail,
         },
   ]
 
@@ -378,7 +543,7 @@ export function TodayPage() {
 
             <div className="mb-5">
               <AnimatedHeroAmount
-                value={safeData.safe}
+                value={safeData.safeToSpend}
                 formatValue={(value) => formatCurrency(value)}
               />
             </div>
@@ -386,7 +551,7 @@ export function TodayPage() {
             <div className="space-y-3 rounded-[22px] border border-white/[0.05] bg-white/[0.03] p-4">
               <div className="flex items-center justify-between text-[13px] text-white/68">
                 <span>Liquid cash</span>
-                <span className="font-medium text-white">{formatCurrency(safeData.liquid)}</span>
+                <span className="font-medium text-white">{formatCurrency(safeData.liquidMoney)}</span>
               </div>
               <div className="flex items-center justify-between text-[13px] text-white/68">
                 <span>Bills protected</span>
@@ -394,11 +559,11 @@ export function TodayPage() {
               </div>
               <div className="flex items-center justify-between text-[13px] text-white/68">
                 <span>Obligations protected</span>
-                <span className="font-medium text-white">{formatCurrency(safeData.protectedObs)}</span>
+                <span className="font-medium text-white">{formatCurrency(safeData.nearTermObligations)}</span>
               </div>
               <div className="flex items-center justify-between border-t border-white/[0.06] pt-3 text-[13px] text-white/68">
                 <span>Safety buffer</span>
-                <span className="font-medium text-white">{formatCurrency(safeData.buffer)}</span>
+                <span className="font-medium text-white">{formatCurrency(safeData.safetyBuffer)}</span>
               </div>
             </div>
 
@@ -571,6 +736,16 @@ export function TodayPage() {
       <AddBillForm isOpen={activeActionForm === 'bill'} onClose={() => setActiveActionForm(null)} />
       <AddDebtForm isOpen={activeActionForm === 'debt'} onClose={() => setActiveActionForm(null)} />
       <AddGoalForm isOpen={activeActionForm === 'goal'} onClose={() => setActiveActionForm(null)} />
+      <QuickCompleteActionSheet
+        isOpen={!!quickCompleteAction}
+        action={quickCompleteAction}
+        debts={debts}
+        obligations={obligations}
+        savingsGoals={savingsGoals}
+        defaultIncomeAmount={Number(profile?.income_amount || 0)}
+        onClose={() => setQuickCompleteAction(null)}
+        onCompleted={(message) => toast(message)}
+      />
     </>
   )
 }

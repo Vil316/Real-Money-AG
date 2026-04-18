@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS public.obligations (
   amount NUMERIC,
   percentage_of TEXT,
   frequency TEXT NOT NULL,
+  due_date DATE,
   is_fulfilled_this_cycle BOOLEAN DEFAULT FALSE,
   last_fulfilled_date DATE,
   notes TEXT,

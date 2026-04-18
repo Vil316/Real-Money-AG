@@ -1,7 +1,21 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import type { Account, Profile, Bill, Subscription, Obligation, SavingsGoal, IncomeEntry, ActionItem, FrequencyType, Debt } from '@/types'
-import { differenceInDays, add, format, parseISO, isToday, isTomorrow } from 'date-fns'
+import type {
+  Account,
+  Profile,
+  Bill,
+  Subscription,
+  Obligation,
+  SavingsGoal,
+  IncomeEntry,
+  ActionItem,
+  FrequencyType,
+  Debt,
+  SafeToSpendInput,
+  SafeToSpendResult,
+  SafeToSpendStatus,
+} from '@/types'
+import { differenceInCalendarDays, differenceInDays, add, format, parseISO, isToday, isTomorrow } from 'date-fns'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -58,31 +72,161 @@ export function calculateNetPosition(accounts: Account[]): number {
   }, 0)
 }
 
-export function calculateSafeToSpend(data: {
-  accounts: Account[],
-  bills: Bill[],
-  obligations: Obligation[],
-  debts: Debt[]
-}): { safe: number, liquid: number, protectedBills: number, protectedObs: number, buffer: number } {
-  const liquidAccounts = data.accounts.filter(a => a.type === 'bank' || a.type === 'cash')
-  const liquid = liquidAccounts.reduce((sum, a) => sum + Number(a.balance), 0)
+const SAFE_TO_SPEND_WINDOW_DAYS = 7
+const DEFAULT_SAFETY_BUFFER = 150
 
-  const protectedBills = data.bills
-    .filter(b => !b.is_paid_this_cycle && daysUntil(b.next_due_date) <= 7)
-    .reduce((sum, b) => sum + Number(b.amount), 0)
+function toFiniteNumber(value: unknown): number {
+  const numeric = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(numeric) ? numeric : 0
+}
 
-  const protectedObs = data.obligations
-    .filter(o => !o.is_fulfilled_this_cycle && o.amount_type === 'fixed')
-    .reduce((sum, o) => sum + Number(o.amount || 0), 0)
+function getDaysUntilDate(value: unknown, asOfDate: Date): number | null {
+  if (!value) return null
 
-  const pendingDebts = data.debts
-    .filter(d => !d.is_settled && d.next_payment_date && daysUntil(d.next_payment_date) <= 7)
-    .reduce((sum, d) => sum + Number(d.minimum_payment || 0), 0)
+  const parsed = value instanceof Date ? value : typeof value === 'string' ? parseISO(value) : null
+  if (!parsed || !Number.isFinite(parsed.getTime())) return null
 
-  const buffer = 150 // Static MVP buffer
+  return differenceInCalendarDays(parsed, asOfDate)
+}
 
-  const safe = liquid - protectedBills - protectedObs - pendingDebts - buffer
-  return { safe: safe < 0 ? 0 : safe, liquid, protectedBills, protectedObs: protectedObs + pendingDebts, buffer }
+function isDueWithinWindow(value: unknown, asOfDate: Date): boolean {
+  const diff = getDaysUntilDate(value, asOfDate)
+  return diff !== null && diff >= 0 && diff <= SAFE_TO_SPEND_WINDOW_DAYS
+}
+
+function extractObligationDueDate(obligation: Obligation): unknown {
+  const withOptionalDates = obligation as Obligation & {
+    next_due_date?: unknown
+    next_payment_date?: unknown
+    due_date?: unknown
+  }
+
+  return withOptionalDates.next_due_date ?? withOptionalDates.next_payment_date ?? withOptionalDates.due_date
+}
+
+function resolveSafetyBuffer(profile: Profile | null | undefined): number {
+  if (!profile) return DEFAULT_SAFETY_BUFFER
+
+  const withAltBuffer = profile as Profile & { safetyBuffer?: number | null }
+  const raw = profile.safety_buffer ?? withAltBuffer.safetyBuffer
+  if (raw === null || raw === undefined) return DEFAULT_SAFETY_BUFFER
+
+  const numeric = toFiniteNumber(raw)
+  return numeric >= 0 ? numeric : DEFAULT_SAFETY_BUFFER
+}
+
+function resolveSafeToSpendStatus(value: number): SafeToSpendStatus {
+  if (value >= 200) return 'calm'
+  if (value >= 0) return 'tight'
+  return 'attention'
+}
+
+function formatCurrencySafe(amount: number, currency: string): string {
+  try {
+    return formatCurrency(amount, currency)
+  } catch {
+    return formatCurrency(amount, 'GBP')
+  }
+}
+
+function buildSafeToSpendExplanation(data: Omit<SafeToSpendResult, 'explanation'> & {
+  currency: string
+  includedUndatedObligations: number
+}): string {
+  const opening = `Liquid cash is ${formatCurrencySafe(data.liquidMoney, data.currency)}.`
+  const protection = `${formatCurrencySafe(data.protectedBills, data.currency)} is protected for bills, ${formatCurrencySafe(data.nearTermObligations, data.currency)} for near-term obligations, and ${formatCurrencySafe(data.safetyBuffer, data.currency)} for your safety buffer.`
+
+  const statusLine = data.status === 'calm'
+    ? `You have ${formatCurrencySafe(data.safeToSpend, data.currency)} safe to spend right now.`
+    : data.status === 'tight'
+      ? `You have ${formatCurrencySafe(data.safeToSpend, data.currency)} safe to spend, so this week is tight.`
+      : `You're ${formatCurrencySafe(Math.abs(data.safeToSpend), data.currency)} below safe-to-spend and need attention.`
+
+  const assumptionLine = data.includedUndatedObligations > 0
+    ? ' Some obligations with no explicit due date were treated as near-term for safety.'
+    : ''
+
+  return `${opening} ${protection} ${statusLine}${assumptionLine}`
+}
+
+export function calculateSafeToSpend(data: SafeToSpendInput = {}): SafeToSpendResult {
+  const accounts = Array.isArray(data.accounts) ? data.accounts : []
+  const bills = Array.isArray(data.bills) ? data.bills : []
+  const obligations = Array.isArray(data.obligations) ? data.obligations : []
+  const debts = Array.isArray(data.debts) ? data.debts : []
+  const asOfDate = data.asOfDate instanceof Date && Number.isFinite(data.asOfDate.getTime())
+    ? data.asOfDate
+    : new Date()
+
+  const liquidMoney = accounts.reduce((sum, account) => {
+    if (!account || account.is_archived) return sum
+    if (account.type !== 'bank' && account.type !== 'cash') return sum
+
+    const balance = toFiniteNumber(account.balance)
+    return balance > 0 ? sum + balance : sum
+  }, 0)
+
+  const protectedBills = bills.reduce((sum, bill) => {
+    if (!bill || bill.is_paid_this_cycle || bill.is_active === false) return sum
+    if (!isDueWithinWindow(bill.next_due_date, asOfDate)) return sum
+
+    const amount = toFiniteNumber(bill.amount)
+    return amount > 0 ? sum + amount : sum
+  }, 0)
+
+  let includedUndatedObligations = 0
+
+  const obligationDue = obligations.reduce((sum, obligation) => {
+    if (!obligation || obligation.is_fulfilled_this_cycle || obligation.is_active === false) return sum
+    if (obligation.amount_type !== 'fixed') return sum
+
+    const affectsProtectedMoney = obligation.affects_protected_money !== false
+    if (!affectsProtectedMoney) return sum
+
+    const amount = toFiniteNumber(obligation.amount)
+    if (amount <= 0) return sum
+
+    const dueDate = extractObligationDueDate(obligation)
+    if (dueDate && !isDueWithinWindow(dueDate, asOfDate)) return sum
+    if (!dueDate) includedUndatedObligations += 1
+
+    return sum + amount
+  }, 0)
+
+  const debtMinimumDue = debts.reduce((sum, debt) => {
+    if (!debt || debt.is_settled) return sum
+    if (!isDueWithinWindow(debt.next_payment_date, asOfDate)) return sum
+
+    const minimum = toFiniteNumber(debt.minimum_payment)
+    return minimum > 0 ? sum + minimum : sum
+  }, 0)
+
+  const nearTermObligations = obligationDue + debtMinimumDue
+  const safetyBuffer = resolveSafetyBuffer(data.profile)
+  const safeToSpend = liquidMoney - protectedBills - nearTermObligations - safetyBuffer
+  const status = resolveSafeToSpendStatus(safeToSpend)
+  const currency = typeof data.profile?.currency === 'string' && data.profile.currency.trim().length > 0
+    ? data.profile.currency
+    : 'GBP'
+
+  return {
+    liquidMoney,
+    protectedBills,
+    nearTermObligations,
+    safetyBuffer,
+    safeToSpend,
+    status,
+    explanation: buildSafeToSpendExplanation({
+      liquidMoney,
+      protectedBills,
+      nearTermObligations,
+      safetyBuffer,
+      safeToSpend,
+      status,
+      currency,
+      includedUndatedObligations,
+    }),
+  }
 }
 
 export function totalActiveSubscriptions(subscriptions: Subscription[]): number {

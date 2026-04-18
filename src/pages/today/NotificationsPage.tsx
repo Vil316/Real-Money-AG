@@ -9,10 +9,13 @@ import { useIncome } from '@/hooks/useIncome'
 import { useObligations } from '@/hooks/useObligations'
 import { useProfile } from '@/hooks/useProfile'
 import { useSavings } from '@/hooks/useSavings'
-import { useSubscriptions } from '@/hooks/useSubscriptions'
 import { useTransactions } from '@/hooks/useTransactions'
-import { advanceDueDate, formatCurrency, getActionItems } from '@/lib/utils'
-import type { ActionItem } from '@/types'
+import { QuickCompleteActionSheet } from '@/components/modals/forms/QuickCompleteActionSheet'
+import { buildActionCenterModel } from '@/lib/actionCenter'
+import { evaluateSetupCompleteness } from '@/lib/setupCompleteness'
+import { evaluateWeeklyPressure } from '@/lib/weeklyPressure'
+import { advanceDueDate, calculateSafeToSpend, formatCurrency } from '@/lib/utils'
+import type { ActionCenterAction } from '@/types'
 import {
   ActionRow,
   EmptyStateCard,
@@ -25,45 +28,133 @@ import {
   SummaryCard,
 } from '@/components/design'
 
-function getActionLabel(item: ActionItem): string | undefined {
-  if (item.type === 'payday') return 'Log'
-  if (item.canMarkPaid) return 'Pay'
-  if (item.canMarkDone) return 'Done'
-  return undefined
+function getActionTone(item: ActionCenterAction): 'info' | 'neutral' | 'success' | 'attention' {
+  if (item.priority === 'urgent' || item.priority === 'due-soon') return 'attention'
+  if (item.priority === 'missing-setup') return 'info'
+  if (item.priority === 'reassurance') return 'success'
+  return 'neutral'
 }
 
-function getActionTone(item: ActionItem): 'info' | 'neutral' | 'success' | 'attention' {
-  if (item.priority === 'high' || item.priority === 'medium') return 'attention'
-  if (item.type === 'payday') return 'info'
-  if (item.type === 'all_good') return 'success'
-  return 'neutral'
+function extractEntityId(actionId: string, prefix: string): string | null {
+  const fullPrefix = `${prefix}:`
+  if (!actionId.startsWith(fullPrefix)) return null
+
+  const id = actionId.slice(fullPrefix.length).trim()
+  return id.length > 0 ? id : null
+}
+
+function isQuickCompleteCallback(callbackHint: string | undefined): boolean {
+  return callbackHint === 'update_debt_minimum_payment'
+    || callbackHint === 'set_debt_payment_date'
+    || callbackHint === 'set_obligation_due_date'
+    || callbackHint === 'set_weekly_contribution'
+    || callbackHint === 'log_income'
+}
+
+function buildConfidenceImpactLine(impact: {
+  weakensSafeToSpend: boolean
+  weakensPrioritization: boolean
+  weakensTrust: boolean
+}): string {
+  if (impact.weakensSafeToSpend && impact.weakensPrioritization) {
+    return 'Cash and priority guidance still need setup confidence.'
+  }
+
+  if (impact.weakensSafeToSpend) {
+    return 'Cash guidance is still building confidence.'
+  }
+
+  if (impact.weakensPrioritization) {
+    return 'Priority guidance is still building confidence.'
+  }
+
+  if (impact.weakensTrust) {
+    return 'Setup confidence is still stabilizing.'
+  }
+
+  return 'Setup confidence is stable.'
+}
+
+function buildSetupTrustSummary(params: {
+  trustLevel: 'low' | 'medium' | 'high'
+  missingItemsCount: number
+  blockingItemsCount: number
+  impactLine: string
+}): string {
+  if (params.trustLevel === 'high' && params.missingItemsCount === 0) {
+    return 'Setup confidence is strong and action guidance is clear.'
+  }
+
+  if (params.trustLevel === 'low' || params.blockingItemsCount > 0) {
+    return `Setup confidence is low. ${params.blockingItemsCount} key item${params.blockingItemsCount === 1 ? '' : 's'} still need attention.`
+  }
+
+  if (params.missingItemsCount > 0) {
+    return `Setup confidence is building. ${params.missingItemsCount} setup item${params.missingItemsCount === 1 ? '' : 's'} still open.`
+  }
+
+  return params.impactLine
 }
 
 export function NotificationsPage() {
   const navigate = useNavigate()
   const { accounts } = useAccounts()
   const { bills, markPaid } = useBills()
-  const { subscriptions } = useSubscriptions()
   const { debts } = useDebts()
   const { obligations, markDone } = useObligations()
   const { goals } = useSavings()
-  const { incomeEntries, logIncome } = useIncome()
+  const { incomeEntries } = useIncome()
   const { profile } = useProfile()
   const { transactions } = useTransactions()
 
   const [messages, setMessages] = useState<string[]>([])
+  const [quickCompleteAction, setQuickCompleteAction] = useState<ActionCenterAction | null>(null)
 
-  const actionItems = useMemo(
-    () => getActionItems({
+  const safeData = useMemo(
+    () => calculateSafeToSpend({ accounts, bills, obligations, debts, profile }),
+    [accounts, bills, debts, obligations, profile],
+  )
+
+  const pressureData = useMemo(
+    () => evaluateWeeklyPressure({ bills, obligations, debts, safeToSpend: safeData.safeToSpend }),
+    [bills, debts, obligations, safeData.safeToSpend],
+  )
+
+  const actionCenterModel = useMemo(
+    () => buildActionCenterModel({
       bills,
-      subscriptions,
+      obligations,
+      debts,
+      savingsGoals: goals,
+      incomeEntries,
+      profile: profile ?? null,
+      safeToSpend: safeData.safeToSpend,
+      weeklyPressure: pressureData,
+      includeReassurance: true,
+    }),
+    [bills, debts, goals, incomeEntries, obligations, pressureData, profile, safeData.safeToSpend],
+  )
+
+  const setupCompleteness = useMemo(
+    () => evaluateSetupCompleteness({
+      accounts,
       debts,
       obligations,
       savingsGoals: goals,
       incomeEntries,
       profile: profile ?? null,
     }),
-    [bills, debts, goals, incomeEntries, obligations, profile, subscriptions],
+    [accounts, debts, goals, incomeEntries, obligations, profile],
+  )
+
+  const setupImpactLine = useMemo(
+    () => buildConfidenceImpactLine(setupCompleteness.confidenceImpact),
+    [setupCompleteness.confidenceImpact],
+  )
+
+  const actionItems = useMemo(
+    () => actionCenterModel.actions,
+    [actionCenterModel.actions],
   )
 
   const recentEvents = useMemo(
@@ -78,52 +169,91 @@ export function NotificationsPage() {
     setTimeout(() => setMessages(prev => prev.slice(1)), 2800)
   }
 
-  const handleAction = (item: ActionItem) => {
-    if (item.type === 'payday') {
-      const paydayAmount = Number(profile?.income_amount || 0)
-      logIncome.mutate({ amount: paydayAmount, payment_method: 'bank_transfer' })
-      addMessage(`Logged payday income of ${formatCurrency(paydayAmount)}.`)
+  const handleAction = (item: ActionCenterAction) => {
+    if (isQuickCompleteCallback(item.callbackHint)) {
+      setQuickCompleteAction(item)
       return
     }
 
-    if (item.canMarkPaid && item.referenceId) {
-      const bill = bills.find(row => row.id === item.referenceId)
+    if (item.callbackHint === 'mark_bill_paid') {
+      const billId = extractEntityId(item.id, 'bill')
+      const bill = billId ? bills.find(row => row.id === billId) : undefined
       if (!bill) return
+
       markPaid.mutate({ id: bill.id, nextDueDate: advanceDueDate(bill.next_due_date, bill.frequency) })
       addMessage(`${bill.name} marked as paid.`)
       return
     }
 
-    if (item.canMarkDone && item.referenceId) {
-      const obligation = obligations.find(row => row.id === item.referenceId)
+    if (item.callbackHint === 'mark_obligation_done') {
+      const obligationId = extractEntityId(item.id, 'obligation')
+      const obligation = obligationId ? obligations.find(row => row.id === obligationId) : undefined
       if (!obligation) return
+
       markDone.mutate({ id: obligation.id, amount: Number(obligation.amount || 0) })
       addMessage(`${obligation.name} marked as complete for this cycle.`)
+      return
+    }
+
+    if (item.routeHint) {
+      navigate(item.routeHint)
+      return
+    }
+
+    if (item.sourceType === 'review') {
+      navigate('/checkin')
     }
   }
 
-  const urgentCount = actionItems.filter(item => item.priority === 'high' || item.priority === 'medium').length
+  const urgentCount = actionCenterModel.counts.urgent
+  const dueSoonCount = actionCenterModel.counts.dueSoon
+  const missingSetupCount = actionCenterModel.counts.missingSetup
+  const planningCount = actionCenterModel.counts.planning
+  const activeAttentionCount = urgentCount + dueSoonCount
+  const trustPhrase = setupCompleteness.trustLevel === 'high'
+    ? 'Confidence strong'
+    : setupCompleteness.trustLevel === 'medium'
+      ? 'Confidence building'
+      : 'Confidence needs setup'
+  const setupSummaryLine = buildSetupTrustSummary({
+    trustLevel: setupCompleteness.trustLevel,
+    missingItemsCount: setupCompleteness.missingItemsCount,
+    blockingItemsCount: setupCompleteness.blockingItems.length,
+    impactLine: setupImpactLine,
+  })
+  const setupChipLabel = activeAttentionCount > 0
+    ? 'Needs attention'
+    : setupCompleteness.trustLevel === 'low'
+      ? 'Setup first'
+      : setupCompleteness.trustLevel === 'medium'
+        ? 'Steady'
+        : 'Ready'
+  const setupChipTone: 'attention' | 'neutral' | 'success' = activeAttentionCount > 0 || setupCompleteness.trustLevel === 'low'
+    ? 'attention'
+    : setupCompleteness.trustLevel === 'medium'
+      ? 'neutral'
+      : 'success'
 
   return (
-    <PageShell topSlot={<FloatingTopControls hasLivePulse={urgentCount > 0} />}>
+    <PageShell topSlot={<FloatingTopControls hasLivePulse={activeAttentionCount > 0} />}>
       <SummaryCard
         eyebrow="Action Center"
         eyebrowIcon={<Bell size={12} strokeWidth={2.2} />}
-        status={urgentCount > 0 ? `${urgentCount} urgent` : 'Stable'}
+        status={urgentCount > 0 ? `${urgentCount} urgent` : dueSoonCount > 0 ? `${dueSoonCount} due soon` : trustPhrase}
         value={actionItems.length}
         metrics={[
           { label: 'Urgent actions', value: urgentCount },
-          { label: 'Recent events', value: recentEvents.length },
-          { label: 'Tracked accounts', value: accounts.length },
+          { label: 'Due soon', value: dueSoonCount },
+          { label: 'Setup actions', value: missingSetupCount },
         ]}
-        footer={urgentCount > 0 ? 'Resolve urgent alerts to stabilize your system state' : 'No urgent alerts, system remains calm'}
+        footer={setupSummaryLine}
       />
 
       <SectionCard>
         <SectionHeader
           title="Priority Actions"
-          subtitle="Tasks generated from your current financial state"
-          right={<MetadataChip label={urgentCount > 0 ? 'Needs attention' : 'All good'} tone={urgentCount > 0 ? 'attention' : 'success'} />}
+          subtitle={`${actionItems.length} actions · U:${urgentCount} D:${dueSoonCount} S:${missingSetupCount} P:${planningCount}`}
+          right={<MetadataChip label={setupChipLabel} tone={setupChipTone} />}
         />
 
         {actionItems.length === 0 ? (
@@ -137,10 +267,10 @@ export function NotificationsPage() {
               <ActionRow
                 key={item.id}
                 title={item.title}
-                detail={item.description}
+                detail={item.detail}
                 tone={getActionTone(item)}
-                actionLabel={getActionLabel(item)}
-                onAction={getActionLabel(item) ? () => handleAction(item) : undefined}
+                actionLabel={item.actionLabel}
+                onAction={() => handleAction(item)}
                 index={index}
               />
             ))}
@@ -220,6 +350,17 @@ export function NotificationsPage() {
           </div>
         ))}
       </div>
+
+      <QuickCompleteActionSheet
+        isOpen={!!quickCompleteAction}
+        action={quickCompleteAction}
+        debts={debts}
+        obligations={obligations}
+        savingsGoals={goals}
+        defaultIncomeAmount={Number(profile?.income_amount || 0)}
+        onClose={() => setQuickCompleteAction(null)}
+        onCompleted={(message) => addMessage(message)}
+      />
     </PageShell>
   )
 }

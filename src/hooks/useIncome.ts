@@ -24,12 +24,37 @@ export function useIncome() {
 
   const logIncome = useMutation({
     mutationFn: async (entry: Partial<IncomeEntry>) => {
-      const { error } = await supabase.from('income_entries').insert([{ 
-        ...entry, 
+      const payload = {
+        ...entry,
         user_id: user?.id,
-        week_reference: entry.week_reference || getCurrentWeekRef()
-      }])
-      if (error) throw error
+        week_reference: entry.week_reference || getCurrentWeekRef(),
+      }
+
+      console.info('[income.logIncome] Starting income log save', payload)
+
+      const { data, error } = await supabase
+        .from('income_entries')
+        .insert([payload])
+        .select('id, amount, date, week_reference')
+        .maybeSingle()
+
+      if (error) {
+        console.error('[income.logIncome] Failed to save income log', {
+          payload,
+          error,
+        })
+        throw error
+      }
+
+      if (!data?.id) {
+        console.error('[income.logIncome] Insert returned no row', {
+          payload,
+          userId: user?.id,
+        })
+        throw new Error('Unable to log income: insert returned no saved row.')
+      }
+
+      console.info('[income.logIncome] Income log save completed', data)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['income', user?.id] })
   })

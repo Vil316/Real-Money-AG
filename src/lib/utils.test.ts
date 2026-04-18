@@ -116,13 +116,50 @@ describe('financial helpers', () => {
       },
     ]
 
-    expect(calculateSafeToSpend({ accounts, bills, obligations, debts })).toEqual({
-      safe: 1025,
-      liquid: 1500,
-      protectedBills: 200,
-      protectedObs: 125,
-      buffer: 150,
-    })
+    const result = calculateSafeToSpend({ accounts, bills, obligations, debts })
+
+    expect(result.liquidMoney).toBe(1500)
+    expect(result.protectedBills).toBe(200)
+    expect(result.nearTermObligations).toBe(125)
+    expect(result.safetyBuffer).toBe(150)
+    expect(result.safeToSpend).toBe(1025)
+    expect(result.status).toBe('calm')
+    expect(result.explanation).toContain('safe to spend')
+  })
+
+  it('assigns status from safe-to-spend thresholds', () => {
+    const accountTemplate: Account = {
+      id: 'acc-status',
+      user_id: 'user-1',
+      name: 'Main',
+      type: 'bank',
+      balance: 0,
+      currency: 'GBP',
+      is_manual: true,
+      is_archived: false,
+      last_updated: '2026-04-15T00:00:00.000Z',
+    }
+
+    expect(calculateSafeToSpend({
+      accounts: [{ ...accountTemplate, balance: 500 }],
+      bills: [],
+      obligations: [],
+      debts: [],
+    }).status).toBe('calm')
+
+    expect(calculateSafeToSpend({
+      accounts: [{ ...accountTemplate, balance: 250 }],
+      bills: [],
+      obligations: [],
+      debts: [],
+    }).status).toBe('tight')
+
+    expect(calculateSafeToSpend({
+      accounts: [{ ...accountTemplate, balance: 80 }],
+      bills: [],
+      obligations: [],
+      debts: [],
+    }).status).toBe('attention')
   })
 
   it('advances recurring due dates correctly', () => {

@@ -2,8 +2,15 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Target } from 'lucide-react'
+import { useAccounts } from '@/hooks/useAccounts'
+import { useBills } from '@/hooks/useBills'
+import { useDebts } from '@/hooks/useDebts'
+import { useObligations } from '@/hooks/useObligations'
+import { useProfile } from '@/hooks/useProfile'
 import { useSavings } from '@/hooks/useSavings'
-import { formatCurrency } from '@/lib/utils'
+import { evaluateWeeklyPressure } from '@/lib/weeklyPressure'
+import { calculateSafeToSpend, formatCurrency } from '@/lib/utils'
+import type { SavingsGoal } from '@/types'
 import {
   EmptyStateCard,
   FloatingTopControls,
@@ -17,21 +24,159 @@ import {
 import { AddContributionForm } from '@/components/modals/forms/AddContributionForm'
 import { AddGoalForm } from '@/components/modals/forms/AddGoalForm'
 
+function toSafeNumber(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+type GoalInsight = {
+  goal: SavingsGoal
+  current: number
+  target: number
+  weekly: number
+  remaining: number
+  percent: number
+  isComplete: boolean
+  hasWeeklyPlan: boolean
+  weeksToCompletion: number | null
+  isNearCompletion: boolean
+}
+
 export function SavingsPage() {
   const navigate = useNavigate()
+  const { accounts } = useAccounts()
+  const { bills } = useBills()
+  const { debts } = useDebts()
+  const { obligations } = useObligations()
+  const { profile } = useProfile()
   const { goals, isLoading } = useSavings()
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
   const [isAddGoalOpen, setIsAddGoalOpen] = useState(false)
 
-  const totalSaved = goals.reduce((sum, goal) => sum + Number(goal.current_amount), 0)
-  const totalTarget = goals.reduce((sum, goal) => sum + Number(goal.target_amount), 0)
-  const completedCount = goals.filter(goal => goal.is_completed || Number(goal.current_amount) >= Number(goal.target_amount)).length
-  const progressAll = totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0
+  const currency = typeof profile?.currency === 'string' && profile.currency.trim().length > 0
+    ? profile.currency
+    : 'GBP'
 
-  const sortedGoals = useMemo(
-    () => [...goals].sort((a, b) => Number(b.current_amount) - Number(a.current_amount)),
-    [goals],
+  const safeData = calculateSafeToSpend({ accounts, bills, obligations, debts, profile })
+  const pressureData = evaluateWeeklyPressure({
+    bills,
+    obligations,
+    debts,
+    safeToSpend: safeData.safeToSpend,
+  })
+
+  const goalInsights = useMemo<GoalInsight[]>(() => {
+    return goals.map((goal) => {
+      const current = toSafeNumber(goal.current_amount)
+      const target = Math.max(toSafeNumber(goal.target_amount), 0)
+      const weekly = Math.max(toSafeNumber(goal.weekly_contribution), 0)
+      const remaining = Math.max(target - current, 0)
+      const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0
+      const isComplete = goal.is_completed || percent >= 100 || remaining <= 0
+      const hasWeeklyPlan = weekly > 0
+      const weeksToCompletion = hasWeeklyPlan && remaining > 0
+        ? Math.ceil(remaining / weekly)
+        : null
+      const nearCompletionThreshold = Math.max(hasWeeklyPlan ? weekly * 4 : 0, 150)
+      const isNearCompletion = !isComplete && (percent >= 80 || remaining <= nearCompletionThreshold)
+
+      return {
+        goal,
+        current,
+        target,
+        weekly,
+        remaining,
+        percent,
+        isComplete,
+        hasWeeklyPlan,
+        weeksToCompletion,
+        isNearCompletion,
+      }
+    })
+  }, [goals])
+
+  const activeGoalInsights = useMemo(
+    () => goalInsights.filter((item) => !item.isComplete),
+    [goalInsights],
   )
+
+  const suggestedGoalInsight = useMemo(() => {
+    if (activeGoalInsights.length === 0) return null
+
+    const goalsWithPlan = activeGoalInsights
+      .filter(item => item.hasWeeklyPlan && item.weeksToCompletion !== null)
+      .sort((a, b) => {
+        if ((a.weeksToCompletion ?? Number.POSITIVE_INFINITY) !== (b.weeksToCompletion ?? Number.POSITIVE_INFINITY)) {
+          return (a.weeksToCompletion ?? Number.POSITIVE_INFINITY) - (b.weeksToCompletion ?? Number.POSITIVE_INFINITY)
+        }
+        if (a.remaining !== b.remaining) return a.remaining - b.remaining
+        return b.percent - a.percent
+      })
+
+    if (goalsWithPlan.length > 0) return goalsWithPlan[0]
+
+    return [...activeGoalInsights].sort((a, b) => {
+      if (a.remaining !== b.remaining) return a.remaining - b.remaining
+      return b.percent - a.percent
+    })[0]
+  }, [activeGoalInsights])
+
+  const sortedGoals = useMemo(() => {
+    const suggestedId = suggestedGoalInsight?.goal.id
+
+    return [...goalInsights]
+      .sort((a, b) => {
+        if (suggestedId) {
+          if (a.goal.id === suggestedId) return -1
+          if (b.goal.id === suggestedId) return 1
+        }
+
+        if (a.isComplete !== b.isComplete) return a.isComplete ? 1 : -1
+        if (a.hasWeeklyPlan !== b.hasWeeklyPlan) return a.hasWeeklyPlan ? 1 : -1
+        if (a.remaining !== b.remaining) return a.remaining - b.remaining
+        return b.current - a.current
+      })
+      .map(item => item.goal)
+  }, [goalInsights, suggestedGoalInsight?.goal.id])
+
+  const insightsById = useMemo(() => {
+    const map = new Map<string, GoalInsight>()
+    goalInsights.forEach((item) => {
+      map.set(item.goal.id, item)
+    })
+    return map
+  }, [goalInsights])
+
+  const totalSaved = goalInsights.reduce((sum, goal) => sum + goal.current, 0)
+  const missingWeeklyPlanCount = activeGoalInsights.filter(goal => !goal.hasWeeklyPlan).length
+  const nearCompletionCount = activeGoalInsights.filter(goal => goal.isNearCompletion).length
+
+  const contributionMode =
+    safeData.status === 'attention' || pressureData.attentionLevel === 'attention'
+      ? 'protection-first'
+      : safeData.status === 'tight' || pressureData.attentionLevel === 'watch'
+        ? 'cautious'
+        : 'contribution-friendly'
+
+  const weeklyStatusLine = contributionMode === 'protection-first'
+    ? 'Protection-first week'
+    : contributionMode === 'cautious'
+      ? 'Cautious contribution week'
+      : 'Contribution-friendly week'
+
+  const suggestionLine = suggestedGoalInsight
+    ? `Suggested next: ${suggestedGoalInsight.goal.name} (${formatCurrency(suggestedGoalInsight.remaining, currency)} remaining${suggestedGoalInsight.weeksToCompletion !== null ? `, ~${suggestedGoalInsight.weeksToCompletion} week${suggestedGoalInsight.weeksToCompletion === 1 ? '' : 's'} at current plan` : ''}).`
+    : 'No active goal needs support this week.'
+
+  const cautionLine = contributionMode === 'protection-first'
+    ? `Near-term pressure is elevated (${pressureData.dueSoonCount} due soon). Keep savings contributions optional this week.`
+    : contributionMode === 'cautious'
+      ? `Essentials are in view (${pressureData.dueSoonCount} due soon, ${pressureData.upcomingCount} upcoming). Prioritize one realistic goal.`
+      : 'Core obligations look covered. This week supports planned savings contributions.'
+
+  const planningDetailLine = missingWeeklyPlanCount > 0
+    ? `${missingWeeklyPlanCount} active goal${missingWeeklyPlanCount === 1 ? '' : 's'} missing weekly planning detail.`
+    : 'All active goals have a weekly contribution plan.'
 
   if (isLoading) {
     return (
@@ -46,23 +191,24 @@ export function SavingsPage() {
   return (
     <PageShell topSlot={<FloatingTopControls hasLivePulse={goals.some(goal => !goal.is_completed)} />}>
       <SummaryCard
-        eyebrow="Savings Command"
+        eyebrow="Savings Intelligence"
         eyebrowIcon={<Target size={12} strokeWidth={2.2} />}
-        status={`${progressAll}% complete`}
-        value={formatCurrency(totalSaved)}
+        status={weeklyStatusLine}
+        value={formatCurrency(totalSaved, currency)}
+        tone={contributionMode === 'protection-first' ? 'attention' : contributionMode === 'cautious' ? 'teal' : 'success'}
         metrics={[
-          { label: 'Total target', value: formatCurrency(totalTarget) },
-          { label: 'Active goals', value: goals.length },
-          { label: 'Completed goals', value: completedCount },
+          { label: 'Safe to spend now', value: formatCurrency(safeData.safeToSpend, currency) },
+          { label: 'Needs weekly plan', value: missingWeeklyPlanCount },
+          { label: 'Near completion', value: nearCompletionCount },
         ]}
-        footer="Goal contributions are captured inside your savings runway"
+        footer={`${cautionLine} ${suggestionLine} ${planningDetailLine}`}
       />
 
       <SectionCard>
         <SectionHeader
           title="Savings Goals"
-          subtitle={`${goals.length} goals in your portfolio`}
-          right={<MetadataChip label="Tracked" tone="teal" />}
+          subtitle={`${goals.length} goals in your portfolio${missingWeeklyPlanCount > 0 ? ` · ${missingWeeklyPlanCount} need weekly plan detail` : ''}`}
+          right={<MetadataChip label={contributionMode === 'protection-first' ? 'Protect first' : contributionMode === 'cautious' ? 'Cautious' : 'Contribute'} tone={contributionMode === 'protection-first' ? 'attention' : contributionMode === 'cautious' ? 'teal' : 'success'} />}
         />
 
         {sortedGoals.length === 0 ? (
@@ -75,11 +221,21 @@ export function SavingsPage() {
         ) : (
           <div className="space-y-3">
             {sortedGoals.map((goal, index) => {
-              const current = Number(goal.current_amount)
-              const target = Number(goal.target_amount)
-              const weekly = Number(goal.weekly_contribution || 0)
-              const percent = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0
-              const isComplete = goal.is_completed || percent >= 100
+              const insight = insightsById.get(goal.id)
+              const current = insight?.current ?? 0
+              const target = insight?.target ?? 0
+              const weekly = insight?.weekly ?? 0
+              const percent = insight?.percent ?? 0
+              const isComplete = insight?.isComplete ?? false
+              const hasWeeklyPlan = insight?.hasWeeklyPlan ?? false
+              const isSuggested = suggestedGoalInsight?.goal.id === goal.id
+              const secondaryLine = isSuggested
+                ? 'Most realistic goal to support next'
+                : !hasWeeklyPlan && !isComplete
+                  ? 'Needs weekly contribution detail'
+                  : insight?.weeksToCompletion !== null
+                    ? `~${insight.weeksToCompletion} week${insight.weeksToCompletion === 1 ? '' : 's'} at current plan`
+                    : 'Progressing by manual contributions'
 
               return (
                 <motion.div
@@ -97,8 +253,8 @@ export function SavingsPage() {
                       </p>
                     </div>
                     <MetadataChip
-                      label={isComplete ? 'Reached' : `${percent}%`}
-                      tone={isComplete ? 'success' : goal.is_challenge ? 'attention' : 'neutral'}
+                      label={isComplete ? 'Reached' : isSuggested ? 'Support next' : !hasWeeklyPlan ? 'Plan needed' : `${percent}%`}
+                      tone={isComplete ? 'success' : isSuggested ? 'teal' : !hasWeeklyPlan ? 'attention' : goal.is_challenge ? 'attention' : 'neutral'}
                     />
                   </div>
 
@@ -113,8 +269,8 @@ export function SavingsPage() {
                   </div>
 
                   <div className="mb-3 flex items-center justify-between text-[11px] text-white/52">
-                    <span>{weekly > 0 ? `${formatCurrency(weekly)} weekly plan` : 'No weekly plan set'}</span>
-                    <span>{goal.is_challenge ? 'Challenge goal' : 'Standard goal'}</span>
+                    <span>{weekly > 0 ? `${formatCurrency(weekly, currency)} weekly plan` : 'No weekly plan set'}</span>
+                    <span>{secondaryLine}</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">

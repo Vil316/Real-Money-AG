@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { ArrowLeft, CreditCard, Flag, RefreshCw } from 'lucide-react'
 import { useDebts } from '@/hooks/useDebts'
+import { calculateDebtProgress } from '@/lib/debtProgress'
 import { formatCurrency } from '@/lib/utils'
 import {
   EmptyStateCard,
@@ -14,6 +15,8 @@ import {
   SummaryCard,
 } from '@/components/design'
 import { LogPaymentForm } from '@/components/modals/forms/LogPaymentForm'
+import { QuickCompleteActionSheet } from '@/components/modals/forms/QuickCompleteActionSheet'
+import type { ActionCenterAction } from '@/types'
 
 function formatDebtType(type: string) {
   if (type === 'credit_card') return 'Credit Card'
@@ -26,8 +29,32 @@ export function DebtDetailPage() {
   const { id } = useParams()
   const { debts, isLoading, markBNPLPaid } = useDebts()
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
+  const [quickCompleteAction, setQuickCompleteAction] = useState<ActionCenterAction | null>(null)
 
   const debt = debts.find(item => item.id === id)
+  const progress = calculateDebtProgress(debt?.original_balance, debt?.current_balance)
+  const original = progress.originalBalance
+  const current = progress.currentBalance
+  const repaidAmount = progress.repaidAmount
+  const paidPct = progress.progressPercent
+  const barWidth = progress.progressWidth
+  const minimumPayment = Number(debt?.minimum_payment || 0)
+
+  useEffect(() => {
+    if (!debt) return
+
+    if (debt.creditor_name.toLowerCase().includes('clearpay')) {
+      console.info('[debt-detail-page] Clearpay progress runtime values', {
+        debtId: debt.id,
+        creditor: debt.creditor_name,
+        originalBalance: progress.originalBalance,
+        currentBalance: progress.currentBalance,
+        repaidAmount: progress.repaidAmount,
+        progressPercent: progress.progressPercent,
+        progressWidth: progress.progressWidth,
+      })
+    }
+  }, [debt, progress.currentBalance, progress.originalBalance, progress.progressPercent, progress.progressWidth, progress.repaidAmount])
 
   const installmentStatus = useMemo(() => {
     if (!debt?.bnpl_instalments || debt.bnpl_instalments.length === 0) {
@@ -52,20 +79,14 @@ export function DebtDetailPage() {
     return (
       <PageShell topSlot={<FloatingTopControls />}>
         <EmptyStateCard
-          title="Debt entry not found"
-          description="This debt may have been settled or is no longer available."
+          title="Debt not found"
+          description="This debt may have been removed or is no longer available."
           actionLabel="Back to debts"
           onAction={() => navigate('/debts')}
         />
       </PageShell>
     )
   }
-
-  const original = Number(debt.original_balance)
-  const current = Number(debt.current_balance)
-  const paidAmount = Math.max(original - current, 0)
-  const paidPct = original > 0 ? Math.min(100, Math.round((paidAmount / original) * 100)) : 0
-  const minimumPayment = Number(debt.minimum_payment || 0)
 
   return (
     <PageShell topSlot={<FloatingTopControls hasLivePulse={current > 0} />}>
@@ -77,7 +98,7 @@ export function DebtDetailPage() {
         tone={current > 1000 ? 'danger' : 'teal'}
         metrics={[
           { label: 'Original balance', value: formatCurrency(original) },
-          { label: 'Paid so far', value: formatCurrency(paidAmount) },
+          { label: 'Paid so far', value: formatCurrency(repaidAmount) },
           { label: 'Minimum payment', value: minimumPayment > 0 ? formatCurrency(minimumPayment) : 'Not set' },
         ]}
         footer={`${debt.creditor_name} remains in your repayment runway`}
@@ -91,7 +112,7 @@ export function DebtDetailPage() {
         />
 
         <div className="mb-2 h-3 overflow-hidden rounded-full bg-white/[0.08]">
-          <div className={`h-full rounded-full ${current <= 0 ? 'bg-[#74d4a3]' : 'bg-white/58'}`} style={{ width: `${paidPct}%` }} />
+          <div className="h-full rounded-full" style={{ width: `${barWidth}%`, backgroundColor: current <= 0 ? '#74d4a3' : 'rgba(255,255,255,0.58)' }} />
         </div>
 
         <div className="mb-4 flex items-center justify-between text-[12px] text-white/52">
@@ -103,7 +124,7 @@ export function DebtDetailPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
             disabled={current <= 0}
@@ -118,6 +139,25 @@ export function DebtDetailPage() {
             className="rounded-2xl border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/76 transition-colors hover:bg-white/[0.06]"
           >
             Open transfer flow
+          </button>
+          <button
+            type="button"
+            disabled={current <= 0}
+            onClick={() => {
+              setQuickCompleteAction({
+                id: `debt-min:${debt.id}`,
+                title: `Set minimum payment for ${debt.creditor_name}`,
+                detail: 'Debt prioritization needs an up-to-date minimum payment value.',
+                sourceType: 'debt',
+                priority: 'missing-setup',
+                actionLabel: minimumPayment > 0 ? 'Edit minimum' : 'Set minimum',
+                routeHint: `/debts/${debt.id}`,
+                callbackHint: 'update_debt_minimum_payment',
+              })
+            }}
+            className="rounded-2xl border border-[#0B8289]/24 bg-[#0B8289]/11 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9ddbe0] transition-colors hover:bg-[#0B8289]/16 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {minimumPayment > 0 ? 'Edit minimum' : 'Set minimum'}
           </button>
         </div>
       </SectionCard>
@@ -187,6 +227,20 @@ export function DebtDetailPage() {
         onClose={() => setIsPaymentOpen(false)}
         debtId={debt.id}
         suggestedAmount={debt.minimum_payment}
+      />
+      <QuickCompleteActionSheet
+        isOpen={!!quickCompleteAction}
+        action={quickCompleteAction}
+        debts={debts}
+        obligations={[]}
+        savingsGoals={[]}
+        onClose={() => setQuickCompleteAction(null)}
+        onCompleted={(message) => {
+          console.info('[debt-detail-page] Minimum payment quick flow completed', {
+            message,
+            actionId: quickCompleteAction?.id,
+          })
+        }}
       />
     </PageShell>
   )

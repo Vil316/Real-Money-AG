@@ -3,8 +3,13 @@ import { CheckCircle2, HandCoins } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useObligations } from '@/hooks/useObligations'
 import { useProfile } from '@/hooks/useProfile'
+import {
+  formatObligationAmountPresentation,
+  getObligationCadence,
+  getObligationMonthlyMultiplier,
+} from '@/lib/obligations'
 import { formatCurrency } from '@/lib/utils'
-import type { FrequencyType, Obligation } from '@/types'
+import type { Obligation } from '@/types'
 import {
   EmptyStateCard,
   FloatingTopControls,
@@ -14,14 +19,6 @@ import {
   SectionHeader,
   SummaryCard,
 } from '@/components/design'
-
-function monthlyMultiplier(frequency: FrequencyType): number {
-  if (frequency === 'weekly') return 4.33
-  if (frequency === 'monthly') return 1
-  if (frequency === 'quarterly') return 1 / 3
-  if (frequency === 'annual') return 1 / 12
-  return 1
-}
 
 function estimateObligationAmount(obligation: Obligation, fallbackIncome: number): number {
   if (obligation.amount_type === 'percentage') {
@@ -38,12 +35,15 @@ export function ObligationsPage() {
   const { obligations, isLoading, markDone } = useObligations()
   const [messages, setMessages] = useState<string[]>([])
 
+  const currency = typeof profile?.currency === 'string' && profile.currency.trim().length > 0
+    ? profile.currency
+    : 'GBP'
   const incomeAmount = Number(profile?.income_amount || 0)
 
   const totalEstimatedMonthly = useMemo(
     () => obligations.reduce((sum, obligation) => {
       const amount = estimateObligationAmount(obligation, incomeAmount)
-      return sum + amount * monthlyMultiplier(obligation.frequency)
+      return sum + amount * getObligationMonthlyMultiplier(getObligationCadence(obligation))
     }, 0),
     [incomeAmount, obligations],
   )
@@ -98,16 +98,14 @@ export function ObligationsPage() {
           <div className="space-y-3">
             {obligations.map(obligation => {
               const baseAmount = estimateObligationAmount(obligation, incomeAmount)
-              const amountText = obligation.amount_type === 'percentage'
-                ? `${Number(obligation.amount || 0)}% of income`
-                : formatCurrency(baseAmount)
+              const amountText = formatObligationAmountPresentation(obligation, currency)
 
               return (
                 <div key={obligation.id} className="rounded-[22px] border border-white/[0.08] bg-white/[0.03] px-4 py-4">
                   <div className="mb-2 flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-[15px] font-semibold text-white">{obligation.name}</h3>
-                      <p className="mt-1 text-[12px] text-white/48">{amountText} · {obligation.frequency}</p>
+                      <p className="mt-1 text-[12px] text-white/48">{amountText}</p>
                     </div>
                     <MetadataChip
                       label={obligation.is_fulfilled_this_cycle ? 'Done' : 'Pending'}
@@ -116,7 +114,7 @@ export function ObligationsPage() {
                   </div>
 
                   <div className="mb-3 text-[11px] text-white/55">
-                    Estimated monthly impact: {formatCurrency(baseAmount * monthlyMultiplier(obligation.frequency))}
+                    Estimated monthly impact: {formatCurrency(baseAmount * getObligationMonthlyMultiplier(getObligationCadence(obligation)), currency)}
                   </div>
 
                   <button

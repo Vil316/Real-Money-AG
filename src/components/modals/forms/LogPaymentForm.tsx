@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BottomSheet } from '../../ui/bottom-sheet'
 import { Input } from '../../ui/input'
 import { Label } from '../../ui/label'
@@ -9,22 +9,54 @@ import { useAccounts } from '@/hooks/useAccounts'
 export function LogPaymentForm({ isOpen, onClose, debtId, suggestedAmount }: { isOpen: boolean, onClose: () => void, debtId: string, suggestedAmount?: number }) {
   const { logPayment } = useDebts()
   const { accounts } = useAccounts()
+
+  const fundingAccounts = useMemo(
+    () => accounts.filter(a => a.type === 'bank' || a.type === 'cash'),
+    [accounts],
+  )
   
   const [amount, setAmount] = useState(suggestedAmount?.toString() || '')
-  const [accountId, setAccountId] = useState(accounts[0]?.id || '')
+  const [accountId, setAccountId] = useState('')
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const suggested = Number(suggestedAmount || 0)
+    setAmount(suggested > 0 ? String(suggested) : '')
+
+    if (!fundingAccounts.some(account => account.id === accountId)) {
+      setAccountId(fundingAccounts[0]?.id || '')
+    }
+  }, [accountId, fundingAccounts, isOpen, suggestedAmount])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!amount || !accountId) return;
+
+    const parsedAmount = Number(amount)
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || !accountId) return
+
+    console.info('[debt-payment-form] Submitting debt payment payload', {
+      debtId,
+      accountId,
+      amount: parsedAmount,
+    })
     
     logPayment.mutate({
       debtId,
-      amount: Number(amount),
+      amount: parsedAmount,
       accountId
     }, {
       onSuccess: () => {
-        setAmount('');
-        onClose();
+        setAmount('')
+        onClose()
+      },
+      onError: (error) => {
+        console.error('[debt-payment-form] Failed to log debt payment', {
+          debtId,
+          accountId,
+          amount: parsedAmount,
+          error,
+        })
       }
     })
   }
@@ -49,7 +81,7 @@ export function LogPaymentForm({ isOpen, onClose, debtId, suggestedAmount }: { i
         <div className="space-y-3 pt-2">
           <Label className="text-xs uppercase tracking-widest text-foreground/50">Source Account</Label>
           <div className="grid grid-cols-1 gap-2">
-            {accounts.filter(a => a.type === 'bank' || a.type === 'cash').map(acc => (
+            {fundingAccounts.map(acc => (
                <button 
                   type="button" 
                   key={acc.id} 
@@ -64,8 +96,8 @@ export function LogPaymentForm({ isOpen, onClose, debtId, suggestedAmount }: { i
         </div>
 
         <div className="pt-6">
-          <Button type="submit" className="w-full h-14 rounded-2xl font-bold text-[15px] shadow-sm active:scale-95 transition-transform bg-rose-600 hover:bg-rose-700 text-white">
-            Execute Payment
+          <Button type="submit" disabled={logPayment.isPending || !accountId} className="w-full h-14 rounded-2xl font-bold text-[15px] shadow-sm active:scale-95 transition-transform bg-rose-600 hover:bg-rose-700 text-white">
+            {logPayment.isPending ? 'Saving...' : 'Execute Payment'}
           </Button>
         </div>
       </form>
