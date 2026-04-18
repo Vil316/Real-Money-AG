@@ -405,15 +405,17 @@ export function buildActionCenterModel(input: ActionCenterInput = {}): ActionCen
   })
 
   if (highestDebt) {
-    const highestTitle = highestDebt.name?.trim() || highestDebt.creditor_name?.trim() || 'Debt'
+  const topDebt: Debt | null = highestDebt
+  if (topDebt) {
+    const highestTitle = topDebt.name?.trim() || topDebt.creditor_name?.trim() || 'Debt'
     pushAction(createAction({
-      id: `debt-focus:${highestDebt.id}`,
+      id: `debt-focus:${topDebt.id}`,
       title: `Review ${highestTitle} strategy`,
-      detail: `${formatCurrency(toFiniteNumber(highestDebt.current_balance))} remains on your largest balance.`,
+      detail: `${formatCurrency(toFiniteNumber(topDebt.current_balance))} remains on your largest balance.`,
       sourceType: 'debt',
       priority: 'planning',
       actionLabel: 'Open',
-      routeHint: `/debts/${highestDebt.id}`,
+      routeHint: `/debts/${topDebt.id}`,
     }))
   }
 
