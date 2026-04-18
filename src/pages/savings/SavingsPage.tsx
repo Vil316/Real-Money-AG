@@ -195,7 +195,7 @@ export function SavingsPage() {
         eyebrowIcon={<Target size={12} strokeWidth={2.2} />}
         status={weeklyStatusLine}
         value={formatCurrency(totalSaved, currency)}
-        tone={contributionMode === 'protection-first' ? 'attention' : contributionMode === 'cautious' ? 'teal' : 'success'}
+        tone={contributionMode === 'protection-first' ? 'danger' : contributionMode === 'cautious' ? 'teal' : 'teal'}
         metrics={[
           { label: 'Safe to spend now', value: formatCurrency(safeData.safeToSpend, currency) },
           { label: 'Needs weekly plan', value: missingWeeklyPlanCount },
@@ -233,7 +233,7 @@ export function SavingsPage() {
                 ? 'Most realistic goal to support next'
                 : !hasWeeklyPlan && !isComplete
                   ? 'Needs weekly contribution detail'
-                  : insight?.weeksToCompletion !== null
+                  : insight != null && insight.weeksToCompletion !== null
                     ? `~${insight.weeksToCompletion} week${insight.weeksToCompletion === 1 ? '' : 's'} at current plan`
                     : 'Progressing by manual contributions'
 

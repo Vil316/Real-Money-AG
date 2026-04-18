@@ -330,7 +330,7 @@ export function buildActionCenterModel(input: ActionCenterInput = {}): ActionCen
 
   let highestDebt: Debt | null = null
 
-  debts.forEach((debt) => {
+  debts.forEach((debt: Debt) => {
     if (!debt || debt.is_settled) return
 
     const currentBalance = toFiniteNumber(debt.current_balance)

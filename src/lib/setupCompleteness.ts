@@ -1,6 +1,7 @@
 import { differenceInCalendarDays, isToday, parseISO, startOfDay } from 'date-fns'
 import { isPayday } from '@/lib/utils'
 import type {
+  Obligation,
   SetupCompletenessCategoryProgress,
   SetupCompletenessInput,
   SetupCompletenessResult,
@@ -38,7 +39,7 @@ function parseDateSafe(value: unknown): Date | null {
   return parsed
 }
 
-function extractObligationDueDate(obligation: SetupCompletenessInput['obligations'][number]): unknown {
+function extractObligationDueDate(obligation: Obligation | null | undefined): unknown {
   if (!obligation) return null
 
   const withOptionalDates = obligation as (typeof obligation) & {

@@ -131,7 +131,7 @@ export function useObligations() {
             id,
             savedColumn: columnName,
             savedValue: dueDate,
-            returnedValue: dueDateData[columnName],
+            returnedValue: (dueDateData as Record<string, unknown>)[columnName],
           })
           dueDateSaved = true
           break
